@@ -1,0 +1,35 @@
+---
+const { title = 'tapedeck' } = Astro.props;
+---
+
+<header>
+  <nav>
+    <a class="brand" href="/">tapedeck</a>
+    <span class="tagline">Linux-first media recorder</span>
+  </nav>
+</header>
+
+<style>
+  header {
+    border-bottom: 1px solid var(--border);
+    background: var(--bg-header);
+  }
+  nav {
+    max-width: 960px;
+    margin: 0 auto;
+    padding: 1rem 1.5rem;
+    display: flex;
+    align-items: baseline;
+    gap: 1rem;
+  }
+  .brand {
+    font-weight: 700;
+    font-size: 1.1rem;
+    text-decoration: none;
+    color: var(--fg);
+  }
+  .tagline {
+    color: var(--fg-muted);
+    font-size: 0.9rem;
+  }
+</style>

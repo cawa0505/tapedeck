@@ -1,0 +1,21 @@
+---
+const year = new Date().getFullYear();
+---
+
+<footer>
+  <p>© {year} tapedeck — MIT License</p>
+</footer>
+
+<style>
+  footer {
+    border-top: 1px solid var(--border);
+    margin-top: 4rem;
+  }
+  footer p {
+    max-width: 960px;
+    margin: 0 auto;
+    padding: 1.5rem;
+    color: var(--fg-muted);
+    font-size: 0.85rem;
+  }
+</style>
