@@ -1,0 +1,7 @@
+Title "TUI Test"
+Mode TUI
+Output "test_tui.gif"
+FPS 15
+Type "echo Hello Tapedeck"
+Enter
+Sleep 1s
