@@ -1,2 +1,1 @@
-// TUI 核心模組
-pub mod tui {}}
+// TUI implementation follows after the CLI execution path is stable.

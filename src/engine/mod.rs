@@ -1,52 +1,20 @@
-// Engine abstraction for VHS Tape process management
+pub mod dispatcher;
 
-use std::process::Command;
+use anyhow::{bail, Context, Result};
+use std::path::Path;
+use tokio::process::Command;
 
-pub mod vhs;
-pub mod wayland;
+pub async fn run_vhs(script: &Path) -> Result<()> {
+    let executable = std::env::var("VHS_BIN").unwrap_or_else(|_| "vhs".to_owned());
+    let status = Command::new(&executable)
+        .arg(script)
+        .status()
+        .await
+        .with_context(|| format!("failed to start {executable}; install VHS or set VHS_BIN"))?;
 
-pub trait Recorder {
-    fn record(&self, output: &str, duration: u64) -> anyhow::Result<()>;
-}
-
-pub mod vhs {
-    use anyhow::Result;
-
-    pub async fn run_tape_file(tape_path: &str, output_path: &str) -> Result<()> {
-        let vhs_exe = std::env::var("VHS_BIN").unwrap_or_else(|_| "vhs".to_string());
-
-        let status = Command::new(&vhs_exe)
-            .arg(tape_path)
-            .arg("-o")
-            .arg(output_path)
-            .arg("--format")
-            .arg("gif")
-            .status()?;
-
-        if !status.success() {
-            anyhow::bail!("VHS recording failed (exit code: {})", status);
-        }
-        Ok(())
+    if !status.success() {
+        bail!("VHS exited with {status}");
     }
-}
 
-pub mod wayland {
-    use anyhow::Result;
-
-    pub async fn record_screen(output_path: &str, duration: u64) -> Result<()> {
-        let wf_exe = std::env::var("WF_RECORDER").unwrap_or_else(|_| "wf-recorder".to_string());
-
-        let status = Command::new(&wf_exe)
-            .arg("-o")
-            .arg(output_path)
-            .arg("-d")
-            .arg(duration)
-            .arg("--wayland")
-            .status()?;
-
-        if !status.success() {
-            anyhow::bail!("Wayland recording failed (exit code: {})", status);
-        }
-        Ok(())
-    }
+    Ok(())
 }

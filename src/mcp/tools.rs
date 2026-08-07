@@ -44,12 +44,15 @@ impl ToolManager {
             "record_tui_tape" => {
                 let tape_content = &args[1..];
                 let output_path = format!("{}.gif", args[1]);
-                
+
                 // In a real implementation, this would call the VHS engine
                 // For now, create a placeholder file to represent success
                 std::fs::write(&output_path, "placeholder").unwrap();
                 println!("Generated {} from VHS tape", output_path);
-                ToolOutput { success: true, result: output_path }
+                ToolOutput {
+                    success: true,
+                    result: output_path,
+                }
             }
             other => ToolOutput {
                 success: false,

@@ -17,7 +17,7 @@ tapedeck 是一個專為工程師、AI Agent 和技術內容創作者設計的 *
 ## 🛠️ 核心功能
 
 - **智慧引擎調度**：自動選擇最佳後端（VHS Web 或 Native PTY）
-- **硬體探針**：偵測 Intel Arc A380 等 AV1 硬體，自動啟用零負擔編碼
+- **硬體探針**：偵測 GPU AV1 硬體，自動啟用零負擔編碼
 - **腳本語言**：宣告式 YAML/TOML 語法定義錄影流程
 - **TUI 雙欄導播台**：fzf 選單 + Sixel 即時預覽
 - **資產追蹤**：SQLite 關聯媒體檔與 Markdown 引用
@@ -42,5 +42,4 @@ tapedeck run --native demo_gui.roll
 
 ---
 
-🎥 **概念發起人**：[你的 GitHub 帳號]
 🔧 **貢獻歡迎**：提交 PR 前請先開 Issue 討論。

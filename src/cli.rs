@@ -1,4 +1,4 @@
-use clap::{Parser, Subcommand, Args};
+use clap::{Args, Parser, Subcommand};
 use std::path::PathBuf;
 
 #[derive(Parser)]
@@ -34,13 +34,16 @@ pub struct RunArgs {
     pub gif: bool,
     #[arg(long)]
     pub webp: bool,
+    /// Validate the script and show the selected backend without recording.
+    #[arg(long)]
+    pub dry_run: bool,
 }
 
 #[derive(Args)]
 pub struct LinkArgs {
     #[arg(required = true)]
     pub media_file: PathBuf,
-    #[arg(long, default_value = "md"]
+    #[arg(long, default_value = "md")]
     pub format: String, // zola/md/html
 }
 
@@ -58,8 +61,4 @@ pub struct OptimizeArgs {
 pub struct CleanArgs {
     #[arg(long)]
     pub dry_run: bool,
-}
-
-pub fn parse_cli() -> Cli {
-    Cli::parse()
 }
