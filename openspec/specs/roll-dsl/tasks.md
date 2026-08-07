@@ -32,10 +32,10 @@
 - [ ] 單元測試：VHS 轉譯正確性（無需實際呼叫 vhs）
 - [ ] 單元測試：`resolve_output_path`（相對/絕對/CLI 覆寫/XDG_CACHE_HOME 未設定）
 
-## T3：compositor 容錯補強（wayland/compositor.rs）
+## T3：compositor 容錯補強（wayland/compositor.rs）✅ 完成
 
-- [ ] `#[serde(ignore_unknown_fields)]` 加到 NiriWindow/NiriLayout/NiriGeometry/SwayNode/SwayRect
-- [ ] WaitWindow 輪詢（dispatcher 側呼叫，200ms 間隔）
+- [x] serde 未知欄位容錯：**無需屬性** — 實測 serde 預設忽略未知欄位（`docs/ref/serde-ignore-unknown-fields.md`）；Niri/Sway JSON 解析天然容錯（Resilience 原則 #3）
+- [x] WaitWindow 輪詢：T2 dispatcher 已實作（200ms 間隔，10s 預設逾時）
 
 ## T4b：CLI run flag 接線（dispatcher.rs）✅ 完成
 
