@@ -7,6 +7,12 @@ AGENTS.md
 target/
 *.lock
 
+# 忽略錄影產出（.roll 執行的輸出媒體檔與 assets 目錄）
+*.gif
+*.webm
+*.mp4
+assets/
+
 # 忽略 IDE 設定
 .idea/
 *.iml

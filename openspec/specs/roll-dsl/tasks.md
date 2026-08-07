@@ -11,19 +11,26 @@
   - `WaitWindow(String, u64)`（timeout 解析 `Ns`/`Nms`，預設 10000）
   - `TargetWindow(String)`、`WindowSize(u32,u32)`、`Padding(u32)`、`Roll(u64)`
   - `Shortcut(String)`、`Optimize(String, Vec<(String,String)>)`
+- [ ] vhs 指令全集透寫（REQ-7.1）：`Require`/`Ctrl`/`Alt+key`/`Escape`/`Space`/`Backspace`/`Delete`/`Insert`/`Down`/`Left`/`Right`/`Tab`/`Up`/`PageUp`/`PageDown`/`ScrollUp`/`ScrollDown`/`Hide`/`Show`/`Wait /regexp/`/`Source`/`Screenshot`/`Copy`/`Paste` 原樣解析為透寫指令
 - [ ] `Script` 新增 `engine: Option<Engine>`、`shell: Option<String>`（Terminal 別名）
 - [ ] `Set Engine/Output/FPS/Shell` 分派
 - [ ] 舊別名：`Title`/`Mode`/`Output`/`FPS`/`Terminal`/`Enter`
-- [ ] 單元測試：三份 examples 全部解析成功 + 欄位斷言
+- [ ] 單元測試：三份 examples 全部解析成功 + 欄位斷言 + vhs 全集指令透寫測試
 
 ## T2：dispatcher 雙後端（dispatcher.rs）
 
-- [ ] `run(args)`：dry-run 輸出引擎/輸出/摘要 → `resolve_engine()`（Auto→偵測）→ 分派
-- [ ] `run_vhs`：ExecBefore → VHS DSL 轉譯 → 暫存 .tape → vhs 執行 → ExecAfter
+- [ ] `RecordingEngine` trait（OQ-03 定案）：`prepare/record/cleanup` lifecycle
+- [ ] `VhsEngine` / `NativeEngine` 實作（現有 run_vhs/run_native 遷移為 trait 方法，行為不變）
+- [ ] `run(args)`：dry-run 輸出引擎/輸出/摘要 → `resolve_engine()`（Auto→偵測）→ trait 分派
+- [ ] `resolve_output_path(script_output, cli_override)`（REQ-6）：相對→XDG cache；絕對/CLI 覆寫→照原樣
+- [ ] 錄製前 `create_dir_all` 目標目錄
+- [ ] dry-run 與實際執行顯示解析後絕對輸出路徑
+- [ ] `VhsEngine::record`：ExecBefore → VHS DSL 轉譯 → 暫存 .tape → vhs 執行 → ExecAfter
   - [ ] `Set Framerate`（非 FPS）、`MouseClick left/right/middle`、字母 Key → `Type "q"`
   - [ ] `Roll(s)` → `Sleep Ns`
-- [ ] `run_native`：ExecBefore → detect_compositor → WaitWindow 輪詢 → TargetWindow+Padding → wf-recorder + Roll 計時 → Shortcut → ExecAfter → Optimize
+- [ ] `NativeEngine::record`：ExecBefore → detect_compositor → WaitWindow 輪詢 → TargetWindow+Padding → wf-recorder + Roll 計時 → Shortcut → ExecAfter → Optimize
 - [ ] 單元測試：VHS 轉譯正確性（無需實際呼叫 vhs）
+- [ ] 單元測試：`resolve_output_path`（相對/絕對/CLI 覆寫/XDG_CACHE_HOME 未設定）
 
 ## T3：compositor 容錯補強（wayland/compositor.rs）
 

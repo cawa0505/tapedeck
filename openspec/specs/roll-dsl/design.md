@@ -84,6 +84,22 @@ pub struct Script {
 
 ## 4. Dispatcher（dispatcher.rs）
 
+OQ-03 已定案（2026-08-08）：**新增 `RecordingEngine` trait 抽象層**。dispatcher 透過 trait 分派，不直接呼叫後端函式（對外宣稱架構一致，且符合 Resilience 原則 1 的上層對應 — 外部工具用 Compositor trait 適配、引擎用 RecordingEngine trait 抽象，兩層分工）。
+
+```rust
+/// 錄影引擎抽象層（上層引擎，非外部工具適配）
+#[async_trait]
+pub trait RecordingEngine {
+    async fn prepare(&self, script: &Script) -> Result<()>;
+    async fn record(&self, script: &Script) -> Result<()>;
+    async fn cleanup(&self, script: &Script) -> Result<()>;
+}
+
+// 實作：
+// pub struct VhsEngine;    // 轉譯 .roll → .tape → 本機 vhs 或 SSH vhs serve
+// pub struct NativeEngine; // detect_compositor + wf-recorder 錄製
+```
+
 ```rust
 pub async fn run(args: RunArgs) -> Result<()> {
     let script = parse_roll_script(&args.script_file)?;
@@ -91,15 +107,52 @@ pub async fn run(args: RunArgs) -> Result<()> {
         // REQ-5：印出 engine/output/fps/指令摘要，不執行
         return Ok(());
     }
-    let engine = resolve_engine(&script);  // Auto→偵測環境
-    match engine {
-        Engine::Vhs => run_vhs(&script).await,      // vhs 轉譯層
-        Engine::Native => run_native(&script).await, // compositor + wf-recorder
-    }
+    let engine: Box<dyn RecordingEngine> = match resolve_engine(&script) {
+        Engine::Vhs => Box::new(VhsEngine),
+        Engine::Native => Box::new(NativeEngine),
+    };
+    engine.prepare(&script).await?;
+    engine.record(&script).await?;
+    engine.cleanup(&script).await?;
+    Ok(())
 }
 ```
 
+> 實作任務對應：tasks.md 新增 T 項目 — 定義 trait + VhsEngine/NativeEngine 兩個實作（現有 run_vhs/run_native 遷移為 trait 方法，行為不變）。
+
 ### 4.1 vhs 後端（run_vhs）
+
+#### TUI 雙軌架構
+
+`Mode TUI` 的底層引擎路由為雙軌：
+
+```plaintext
+┌──────────────────────────────┐
+│ .roll Script (Mode TUI)      │
+└──────────────┬───────────────┘
+               │
+ ┌─────────────┴─────────────┐
+ │ TUI Engine Router         │
+ └──────┬─────────────┬──────┘
+        │             │
+        ▼             ▼
+┌─────────────────────────┐ ┌─────────────────────────┐
+│ 1. Local vhs (PTY)      │ │ 2. vhs serve (SSH)      │
+├─────────────────────────┤ ├─────────────────────────┤
+│ • 適用：本機桌面環境     │ │ • 適用：無頭伺服器/CI    │
+│ • 機制：本機 vhs 執行    │ │ • 機制：SSH 連入 vhs     │
+│   .tape 錄製             │ │   serve daemon          │
+│ • 錄影：ANSI PTY → gif/  │ │ • 錄影：遠端執行 .tape  │
+│   webm（vhs 渲染）       │ │   → 回傳輸出檔          │
+└─────────────────────────┘ └─────────────────────────┘
+```
+
+- `vhs serve` 為官方 SSH 模式（v0.11.0 確認存在）：VHS 自身成為 SSH daemon，透過 VT100/ANSI 接管 PTY，無瀏覽器、無 DOM 渲染
+- 沙盒隔離：錄影在獨立 SSH session 執行，不污染本機 shell 環境變數/工作目錄
+- 遠端 CI/CD：可直接把 .roll 丟給遠端 vhs serve 執行
+- **ttyd 非選項**：ttyd 是「terminal→web」分享工具（Libwebsockets + xterm.js），**不需要** Headless Chrome；但錄製需另配瀏覽器側截圖，架構上比 vhs serve 笨重，故不採用
+
+執行流程：
 
 1. 執行所有 `ExecBefore`
 2. 轉譯輸入指令為 VHS DSL：
@@ -110,7 +163,7 @@ pub async fn run(args: RunArgs) -> Result<()> {
    - `Click(Left)` → `MouseClick left`
    - `Roll(s)` → `Sleep Ns`（錄製時長）
    - `Set Framerate n`（注意：VHS 是 Framerate 不是 FPS）
-3. 寫暫存 .tape → `vhs <tmp.tape>`
+3. 寫暫存 .tape → `vhs <tmp.tape>`（本機）或 SSH 至 `vhs serve`（遠端）
 4. 執行所有 `ExecAfter`（失敗僅警告）
 
 ### 4.2 Native 後端（run_native）
@@ -132,7 +185,50 @@ pub async fn run(args: RunArgs) -> Result<()> {
   - `#[serde(ignore_unknown_fields)]` 於 NiriWindow/SwayNode 等 struct（上游 JSON 新增欄位不致解析失敗）
   - WaitWindow 輪詢透過 trait 重複呼叫，不需新方法
 
-## 6. 錯誤處理
+## 6. XDG 路徑解析（REQ-6）
+
+統一路徑解析 helper（`src/xdg.rs` 或 `src/paths.rs`），三個 XDG 目錄共用 `$VAR` / `$HOME` fallback 邏輯：
+
+```rust
+/// $XDG_*_HOME/<sub> 或 $HOME/<fallback>/<sub>
+fn xdg_dir(var: &str, fallback: &str, sub: &str) -> PathBuf {
+    let base = std::env::var_os(var)
+        .map(PathBuf::from)
+        .unwrap_or_else(|| {
+            std::env::var_os("HOME")
+                .map(|h| PathBuf::from(h).join(fallback))
+                .unwrap_or_else(|| PathBuf::from("/tmp"))
+        });
+    base.join(sub)
+}
+```
+
+| 用途 | var | fallback | sub |
+|------|-----|----------|-----|
+| 輸出（快取） | `XDG_CACHE_HOME` | `.cache` | `tapedeck` |
+| config | `XDG_CONFIG_HOME` | `.config` | `tapedeck/config.toml` |
+| state（DB/歷程） | `XDG_STATE_HOME` | `.local/state` | `tapedeck` |
+
+輸出路徑解析：
+
+```rust
+fn resolve_output_path(script_output: &str, cli_override: Option<&Path>) -> Result<PathBuf> {
+    if let Some(p) = cli_override {
+        return Ok(p.to_path_buf());              // CLI 顯式覆寫，照原樣
+    }
+    let p = Path::new(script_output);
+    if p.is_absolute() {
+        return Ok(p.to_path_buf());              // 絕對路徑照原樣
+    }
+    Ok(xdg_dir("XDG_CACHE_HOME", ".cache", "tapedeck").join(p))
+}
+```
+
+- 解析後 `fs::create_dir_all(parent)` 再錄製（REQ-6.2）
+- dry-run 印出解析後絕對路徑（REQ-6.3）
+- config 讀取：`xdg_dir("XDG_CONFIG_HOME", ".config", "tapedeck/config.toml")`，不存在則用預設值（REQ-6.5）
+
+## 7. 錯誤處理
 
 - ExecBefore 失敗 → `bail!`（中止錄製）
 - ExecAfter 失敗 → `warn` 繼續

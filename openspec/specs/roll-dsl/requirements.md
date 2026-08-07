@@ -43,6 +43,15 @@
 - REQ-5.1 `tapedeck run --dry-run <script>` 顯示：解析後的 engine 選擇、輸出、fps、指令摘要
 - REQ-5.2 dry-run 不執行任何外部工具
 
+## REQ-6：XDG 路徑（必要條件）
+
+- REQ-6.1 **輸出路徑**：腳本中**相對**輸出解析至 `$XDG_CACHE_HOME/tapedeck/`（未設定 `XDG_CACHE_HOME` 時用 `$HOME/.cache/tapedeck/`）；**絕對**輸出與 CLI `--output` 覆寫照原樣使用
+- REQ-6.2 目標目錄不存在時自動建立（`fs::create_dir_all`）
+- REQ-6.3 dry-run 與實際執行顯示**解析後的絕對輸出路徑**
+- REQ-6.4 測試/範例錄製產物一律落於 XDG cache，不得寫入 repo 目錄（禁止 CWD 出現 .gif/.webm）
+- REQ-6.5 **config 路徑**：`$XDG_CONFIG_HOME/tapedeck/config.toml`（未設定時 `$HOME/.config/tapedeck/config.toml`）；不存在則以預設值執行並提示
+- REQ-6.6 **state 路徑**：`$XDG_STATE_HOME/tapedeck/`（未設定時 `$HOME/.local/state/tapedeck/`），用於 SQLite DB 與錄製歷程
+
 ## SCN-1：TUI 錄製（vhs 後端）
 
 輸入 `tapedeck run examples/test_tui.roll`（或 tui_zago.roll），engine=Auto→vhs：
@@ -63,8 +72,23 @@
 6. wf-recorder 錄製 Roll 15s
 7. ExecAfter（pkill obsidian）、Optimize（AV1 vaapi）
 
+## REQ-7：vhs 指令全集支援（轉譯層）— 已定案
+
+> 決策（2026-08-08）：MVP 優先支援**所有 .tape 原語法**（vhs 指令全集）+ tapedeck 擴充指令（REQ-1/4）。文件宣稱的 `delay`/`Scroll`/`Engine Wayland` 等未來不確定項目**不納入**，parser 保留擴充餘裕但不預先實作。
+
+- REQ-7.1 parser（轉譯層）必須能解析下列 vhs 全集指令（來源：本機 `vhs manual`），使 .roll 可透寫任何 vhs 指令：
+  - `Output <path>`（.gif/.webm/.mp4）、`Require <program>`、`Set <setting> <value>`、`Sleep <time>`
+  - `Type "<string>"`、`Ctrl [+Alt][+Shift]+<char>`、`Alt+<key>`、`Escape`、`Space [repeat]`
+  - `Backspace [repeat]`、`Delete [repeat]`、`Insert [repeat]`
+  - `Down/Enter/Left/Right/Tab/Up/PageUp/PageDown/ScrollUp/ScrollDown [repeat]`
+  - `Hide`、`Show`、`Wait[+Screen][@<timeout>] /<regexp>/`、`Source <path>.tape`
+  - `Screenshot <path>.png`、`Copy "<string>"`、`Paste`
+- REQ-7.2 vhs 全集指令在 .roll 中**原樣轉譯**至 .tape（tapedeck 不做語意處理），僅 tapedeck 擴充指令（REQ-1.3）由自動化層處理
+- REQ-7.3 **不納入**（維持定案語法）：`Engine Wayland` 別名、`Type "..." delay=Nms`、`Scroll Down N`、`Optimize WebM` 容器先決形式。此類語法未來若確定需求，另行開 change-set
+- REQ-7.4 `Optimize` 維持 `Optimize <codec> [key=value...]` 形式（codec 先決）；容器由 `Output` 副檔名決定
+
 ## 非目標（Non-Goals）
 
-- 不支援 YAML 格式 .rec（見 docs/DSL_Concept.md，另議）
-- 不實作滑鼠座標的螢幕解析度感知（speed=smooth 僅記錄、目前不影響行為）
-- 不實作 TUI 介面的腳本編輯功能
+- 不支援 YAML 格式 .rec（過時概念，已從 docs/ 移除）
+- 不實作滑鼠座標的螢幕解析度感知（speed=smooth 目前僅記錄、不影響行為；Bézier 插補待 OQ-02 決策）
+- 不實作 TUI 介面的腳本編輯功能（OQ-06 待決）
