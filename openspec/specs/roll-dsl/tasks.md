@@ -72,6 +72,19 @@
 - [ ] 單元測試：fallback 鏈（mock probe）
 - [ ] 實作後把 OQ-05 落點 `src/engine/probe.rs` 改為實際模組宣告（移除 `pub mod hardware_probe {}` 空殼）
 
+## T7：SQLite 資產圖譜（src/db.rs）— 待實作
+
+規格來源：OQ-04（project.md:132）+ Pillar 2（project.md:248）。MVP 範圍含 Asset Graph + 孤兒掃描；Re-roll 為 `[待討論]`（需新 change-set，非本次）。
+
+- [ ] `Cargo.toml` 新增 `rusqlite`（bundled，不新增 directories 依賴，XDG 沿用 std 解析）
+- [ ] 新增 `src/db.rs`：DB 初始化（`$XDG_STATE_HOME/tapedeck/tapedeck.db`，未設定 → `~/.local/state/tapedeck/`）
+- [ ] `assets` 表：路徑、hash（sha256）、來源 .roll、mtime、影格快取目錄索引
+- [ ] Markdown 引用追蹤：掃 `.md` 內 `assets/xxx.webm` 引用，建立 `.roll ➔ asset ➔ .md:行號` 三層關聯（Pillar 2）
+- [ ] `clean` 指令（cli.rs 目前 bail 未實作）：孤兒掃描 — 列出並清除無 .md 引用的資產（dry-run 模式先列不刪）
+- [ ] `link` 指令接上 DB 索引（media_link 目前獨立，需寫入 assets 表）
+- [ ] 單元測試：DB 建表 + 資產登錄/查詢 + 孤兒掃描（temp dir + 隔離 XDG_STATE_HOME）
+- [ ] 完成後更新 project.md Pillar 2 狀態與變更集索引
+
 ## 完成定義（Definition of Done）
 
 - [ ] 三份 examples 全部可 dry-run
