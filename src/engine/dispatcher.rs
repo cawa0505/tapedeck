@@ -1,5 +1,5 @@
 use crate::cli::RunArgs;
-use crate::engine::roll_parser::{Mode, Script, ScriptCommand};
+use crate::engine::roll_parser::{Engine, Script, ScriptCommand};
 use anyhow::{anyhow, bail, Context, Result};
 use std::fmt::Write as _;
 use std::path::Path;
@@ -15,22 +15,42 @@ fn script_to_tape_content(script: &Script) -> Result<String> {
     if let Some(fps) = script.fps {
         writeln!(output, "Set Framerate {}", fps)?;
     }
-    if let Some(term) = &script.terminal {
+    if let Some(term) = &script.shell {
         writeln!(output, "Set Shell \"{}\"", term)?;
     }
 
     for cmd in &script.commands {
         match cmd {
             ScriptCommand::Type(text) => writeln!(output, "Type \"{}\"", text)?,
-            ScriptCommand::Enter => writeln!(output, "Enter")?,
-            ScriptCommand::KeyDown(n) => {
-                for _ in 0..*n {
-                    writeln!(output, "Down")?;
-                }
-            }
-            ScriptCommand::KeyUp(n) => {
-                for _ in 0..*n {
-                    writeln!(output, "Up")?;
+            ScriptCommand::Key(name, count) => {
+                let is_single_char = name.chars().count() == 1
+                    && !matches!(
+                        name.as_str(),
+                        "Down"
+                            | "Up"
+                            | "Enter"
+                            | "Tab"
+                            | "Left"
+                            | "Right"
+                            | "PageUp"
+                            | "PageDown"
+                            | "Space"
+                            | "Backspace"
+                            | "Delete"
+                            | "Insert"
+                            | "Escape"
+                            | "Home"
+                            | "End"
+                    );
+                if is_single_char {
+                    // 單一字母 → Type "q"（vhs 無單鍵指令）
+                    for _ in 0..*count {
+                        writeln!(output, "Type \"{}\"", name)?;
+                    }
+                } else if *count > 1 {
+                    writeln!(output, "{} {}", name, count)?;
+                } else {
+                    writeln!(output, "{}", name)?;
                 }
             }
             ScriptCommand::Sleep(ms) => writeln!(output, "Sleep {}ms", ms)?,
@@ -44,7 +64,9 @@ fn script_to_tape_content(script: &Script) -> Result<String> {
                 writeln!(output, "MouseClick {}", btn)?;
             }
             ScriptCommand::Roll(s) => writeln!(output, "Sleep {}s", s)?,
-            // VHS 無對應的指令直接略過
+            // vhs 指令全集透寫（REQ-7.1）：原樣轉譯
+            ScriptCommand::Vhs(line) => writeln!(output, "{}", line)?,
+            // tapedeck 自動化層指令（VHS 無對應）直接略過
             _ => {}
         }
     }
@@ -81,7 +103,7 @@ pub async fn run_tui(script: &Script) -> Result<()> {
 
 /// 執行 GUI 模式：使用 compositor 找到視窗並呼叫 wf-recorder
 pub async fn run_gui(script: &Script) -> Result<()> {
-    use crate::engine::wayland::compositor::{detect_compositor, WindowGeometry};
+    use crate::engine::wayland::compositor::detect_compositor;
 
     let compositor = detect_compositor()?;
 
@@ -102,7 +124,10 @@ pub async fn run_gui(script: &Script) -> Result<()> {
     let geo = compositor.find_window_geometry(target)?;
 
     // 取得輸出路徑
-    let output_path = script.output.as_ref().ok_or_else(|| anyhow!("腳本缺少 Output 指令"))?;
+    let output_path = script
+        .output
+        .as_ref()
+        .ok_or_else(|| anyhow!("腳本缺少 Output 指令"))?;
 
     // 建立 wf-recorder 參數
     let padding: u32 = 0; // TODO: 可從腳本中讀取 padding
@@ -117,7 +142,9 @@ pub async fn run_gui(script: &Script) -> Result<()> {
         .arg(output_path)
         .status()
         .await
-        .with_context(|| format!("failed to start {executable}; install wf-recorder or set WF_RECORDER"))?;
+        .with_context(|| {
+            format!("failed to start {executable}; install wf-recorder or set WF_RECORDER")
+        })?;
 
     if !status.success() {
         bail!("wf-recorder exited with {status}");
@@ -126,20 +153,20 @@ pub async fn run_gui(script: &Script) -> Result<()> {
     Ok(())
 }
 
-/// CLI 入口：解析 .roll 腳本並依模式分派
+/// CLI 入口：解析 .roll 腳本並依引擎分派
 pub async fn run(args: RunArgs) -> Result<()> {
     let script = crate::engine::roll_parser::parse_roll_script(&args.script_file)?;
 
     if args.dry_run {
-        let backend = match script.mode {
-            Some(Mode::TUI) => "vhs",
-            Some(Mode::GUI) => "wf-recorder",
-            None => "unknown",
+        let backend = match script.engine {
+            Some(Engine::Vhs) => "vhs",
+            Some(Engine::Native) => "wf-recorder",
+            Some(Engine::Auto) | None => "auto",
         };
         println!(
-            "dry-run: {} mode={:?} backend={} output={:?} fps={:?}",
+            "dry-run: {} engine={:?} backend={} output={:?} fps={:?}",
             args.script_file.display(),
-            script.mode,
+            script.engine,
             backend,
             script.output,
             script.fps
@@ -147,10 +174,9 @@ pub async fn run(args: RunArgs) -> Result<()> {
         return Ok(());
     }
 
-    match script.mode {
-        Some(Mode::TUI) => run_tui(&script).await,
-        Some(Mode::GUI) => run_gui(&script).await,
-        None => bail!("腳本缺少 Mode 指令，請加上 Mode TUI 或 Mode GUI"),
+    match script.engine {
+        Some(Engine::Vhs) | Some(Engine::Auto) | None => run_tui(&script).await,
+        Some(Engine::Native) => run_gui(&script).await,
     }
 }
 

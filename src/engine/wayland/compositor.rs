@@ -27,6 +27,7 @@ pub trait Compositor {
     /// 根據 title 或 app_id �尋�找指定視�窗的�幾何座標
     fn find_window_geometry(&self, target: &str) -> Result<WindowGeometry>;
     /// 將指定視�窗移至�靜默背景 Workspace
+    #[allow(dead_code)] // OQ-02 GUI 工作接線後使用
     fn move_to_workspace(&self, target: &str, workspace_name: &str) -> Result<()>;
 }
 
@@ -37,6 +38,7 @@ pub struct NiriCompositor;
 
 #[derive(Debug, Deserialize)]
 struct NiriWindow {
+    #[allow(dead_code)] // Niri 靜默移動 (move-window-to-workspace --window-id) 接線後使用
     id: u64,
     title: Option<String>,
     app_id: Option<String>,
@@ -72,7 +74,7 @@ impl Compositor for NiriCompositor {
             .into_iter()
             .find(|w| {
                 w.app_id.as_deref() == Some(target)
-                    || w.title.as_deref().map_or(false, |t| t.contains(target))
+                    || w.title.as_deref().is_some_and(|t| t.contains(target))
             })
             .ok_or_else(|| anyhow!("在 Niri 中�找不到符合 '{}' 的視�窗", target))?;
 
@@ -124,7 +126,7 @@ struct SwayRect {
 impl SwayCompositor {
     fn search_tree(node: &SwayNode, target: &str) -> Option<WindowGeometry> {
         let is_match = node.app_id.as_deref() == Some(target)
-            || node.name.as_deref().map_or(false, |n| n.contains(target));
+            || node.name.as_deref().is_some_and(|n| n.contains(target));
 
         if is_match && node.rect.width > 0 && node.rect.height > 0 {
             return Some(WindowGeometry {
@@ -161,7 +163,10 @@ impl Compositor for SwayCompositor {
     }
 
     fn move_to_workspace(&self, target: &str, workspace_name: &str) -> Result<()> {
-        let criteria = format!("[app_id=\"{}\"] move container to workspace {}", target, workspace_name);
+        let criteria = format!(
+            "[app_id=\"{}\"] move container to workspace {}",
+            target, workspace_name
+        );
         Command::new("swaymsg").arg(criteria).status()?;
         Ok(())
     }
@@ -171,8 +176,12 @@ impl Compositor for SwayCompositor {
 // 3. 自動�偵�測當前環境
 // =========================================================================
 pub fn detect_compositor() -> Result<Box<dyn Compositor>> {
-    let xdg_desktop = std::env::var("XDG_CURRENT_DESKTOP").unwrap_or_default().to_lowercase();
-    let wayland_display = std::env::var("WAYLAND_DISPLAY").unwrap_or_default().to_lowercase();
+    let xdg_desktop = std::env::var("XDG_CURRENT_DESKTOP")
+        .unwrap_or_default()
+        .to_lowercase();
+    let wayland_display = std::env::var("WAYLAND_DISPLAY")
+        .unwrap_or_default()
+        .to_lowercase();
 
     if xdg_desktop.contains("niri") || wayland_display.contains("niri") {
         Ok(Box::new(NiriCompositor))
