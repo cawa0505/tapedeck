@@ -3,6 +3,7 @@ mod config;
 mod db;
 mod doctor;
 mod engine;
+mod media;
 mod paths;
 
 // 測試共用：序列化改 process-wide XDG env 的測試（Rust 預設並行，env var 是全域）
