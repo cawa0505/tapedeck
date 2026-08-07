@@ -49,7 +49,7 @@
 - REQ-6.2 目標目錄不存在時自動建立（`fs::create_dir_all`）
 - REQ-6.3 dry-run 與實際執行顯示**解析後的絕對輸出路徑**
 - REQ-6.4 測試/範例錄製產物一律落於 XDG cache，不得寫入 repo 目錄（禁止 CWD 出現 .gif/.webm）
-- REQ-6.5 **config 路徑**：`$XDG_CONFIG_HOME/tapedeck/config.toml`（未設定時 `$HOME/.config/tapedeck/config.toml`）；不存在則以預設值執行並提示
+- REQ-6.5 **config 路徑**：`$XDG_CONFIG_HOME/tapedeck/config.toml`（未設定時 `$HOME/.config/tapedeck/config.toml`）；不存在則以預設值執行並提示，**首次執行自動建立預設設定檔**（含註解範例）
 - REQ-6.6 **state 路徑**：`$XDG_STATE_HOME/tapedeck/`（未設定時 `$HOME/.local/state/tapedeck/`），用於 SQLite DB 與錄製歷程
 
 ## SCN-1：TUI 錄製（vhs 後端）
