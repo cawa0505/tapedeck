@@ -2,6 +2,13 @@
 
 依賴順序排列。每個任務完成後執行 `cargo build` + 相關測試驗證。
 
+## 執行優先序（CLI + 核心共用元件優先）
+
+1. **T6 硬體探針**（核心共用：encoder fallback 鏈，供 `optimize` 選用 codec）
+2. **T7 SQLite 資產圖譜**（CLI：`clean`/`link` 子指令 + DB 共用元件）
+3. **DoD 驗證**（`tui_zago.roll` 實際錄製，vhs 後端收尾）
+4. **T4b 殘項**（`--max-size` 定案，[待討論]）
+
 ## T1：parser AST 擴充（roll_parser.rs）
 
 - [ ] 新增 `Engine { Auto, Vhs, Native }`，取代/升級 `Mode`

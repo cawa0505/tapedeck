@@ -1,5 +1,15 @@
 # tasks.md — 靜態媒體壓製實作任務
 
+依賴順序排列。每個任務完成後執行 `cargo build` + 相關測試驗證。
+
+## 執行優先序（CLI + 核心共用元件優先）
+
+1. **T1 FfmpegAdapter 骨架**（核心共用：optimize/filmstrip 的共同地基）
+2. **T2 `optimize` 子指令**（CLI：palettegen 雙 Pass + libwebp，T1 之後）
+3. **T3 時間點 JSONL**（核心共用：Native 後端時間戳，filmstrip 依賴）
+4. **T4 `filmstrip` 子指令**（CLI：依賴 T1 + T3）
+5. **T5 端到端驗證**
+
 ## T1：FfmpegAdapter 骨架
 
 - [ ] `src/media/ffmpeg.rs`：trait 定義 + `FfmpegAdapter::new()` 實作
