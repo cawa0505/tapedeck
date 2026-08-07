@@ -1,0 +1,19 @@
+name: 💬 閒聊 / 一般提問
+description: 有問題想問、想分享，或只是想聊聊 tapedeck
+title: ""
+labels: ["discussion"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        這裡沒有格式限制。任何關於 tapedeck 的想法、使用心得、
+        或單純的問題都可以在這裡討論。
+  - type: textarea
+    id: chat
+    attributes:
+      label: 想聊什麼？
+      placeholder: |
+        例如：這工具以後有機會做自動剪輯嗎？
+        或是：我今天錄了一個很酷的影片，跟大家分享一下...
+    validations:
+      required: true

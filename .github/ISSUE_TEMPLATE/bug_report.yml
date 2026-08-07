@@ -1,0 +1,55 @@
+name: 🐞 Bug 回報
+description: 回報錯誤或異常行為，請附上 .roll 腳本
+title: "[Bug] "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        感謝回報。為了能快速定位問題，請附上重現用的 .roll 腳本；
+        如果能補上 `tapedeck doctor` 的輸出會更快找到原因。
+  - type: textarea
+    id: roll-script
+    attributes:
+      label: 重現用的 .roll 腳本
+      description: 貼上能重現問題的腳本（必要的話可以只留最小片段）
+      placeholder: |
+        Title "Demo"
+        Type "echo hello"
+        Enter
+        Sleep 1s
+      render: bash
+    validations:
+      required: true
+  - type: textarea
+    id: doctor-output
+    attributes:
+      label: tapedeck doctor 輸出（建議）
+      description: 執行 `tapedeck doctor` 後貼上完整輸出
+      placeholder: |
+        ✔ vhs: 0.8.0
+        ✔ ffmpeg: 6.1.1
+        ...
+      render: bash
+    validations:
+      required: false
+  - type: textarea
+    id: expected-vs-actual
+    attributes:
+      label: 預期行為 vs 實際行為
+      placeholder: |
+        預期：錄出 2 秒的 gif
+        實際：錄到一半就結束
+    validations:
+      required: false
+  - type: textarea
+    id: environment
+    attributes:
+      label: 環境資訊（建議）
+      description: OS、Wayland compositor（niri/sway）版本、tapedeck 版本
+      placeholder: |
+        - OS: Arch Linux (kernel 6.x)
+        - Compositor: niri 26.04
+        - tapedeck: 0.1.0
+    validations:
+      required: false

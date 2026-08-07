@@ -1,0 +1,38 @@
+name: 💡 功能 / 語法建議
+description: 提出新功能或 .roll 語法擴充的構想
+title: "[Feature] "
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        歡迎提出構想。如果這個功能可以用 .roll 表達，附上一個示意腳本，
+        能讓我們更快理解你的意圖。
+  - type: textarea
+    id: motivation
+    attributes:
+      label: 想做什麼
+      description: 描述你遇到的問題或想要的能力
+      placeholder: |
+        我想錄製一個互動式 TUI 操作，但目前的指令無法...
+    validations:
+      required: true
+  - type: textarea
+    id: roll-example
+    attributes:
+      label: .roll 示意（建議）
+      description: 想像中的語法長什麼樣
+      placeholder: |
+        Set Engine Native
+        Target Window "我的視窗"
+        MouseClick left
+      render: bash
+    validations:
+      required: false
+  - type: textarea
+    id: notes
+    attributes:
+      label: 補充說明
+      placeholder: 其他想說的
+    validations:
+      required: false
