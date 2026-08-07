@@ -45,12 +45,14 @@ pub fn resolve_output_path(script_output: &str, cli_override: Option<&Path>) -> 
 mod tests {
     use super::*;
 
-    /// 環境變數測試需序列化執行（std::env 全域）
-    static ENV_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+    // 環境變數測試統一走 crate::TEST_ENV_LOCK（跨模組序列化，std::env 全域）
+    fn lock() -> std::sync::MutexGuard<'static, ()> {
+        crate::TEST_ENV_LOCK.lock().unwrap()
+    }
 
     #[test]
     fn output_path_relative_uses_xdg_cache() {
-        let _g = ENV_LOCK.lock().unwrap();
+        let _g = lock();
         std::env::set_var("XDG_CACHE_HOME", "/tmp/xdg-cache");
         std::env::set_var("HOME", "/home/user");
         let p = resolve_output_path("assets/demo.webm", None).unwrap();
@@ -59,7 +61,7 @@ mod tests {
 
     #[test]
     fn output_path_xdg_unset_uses_home_fallback() {
-        let _g = ENV_LOCK.lock().unwrap();
+        let _g = lock();
         std::env::remove_var("XDG_CACHE_HOME");
         std::env::set_var("HOME", "/home/user");
         let p = resolve_output_path("assets/demo.webm", None).unwrap();
@@ -77,7 +79,7 @@ mod tests {
 
     #[test]
     fn output_path_cli_override_wins() {
-        let _g = ENV_LOCK.lock().unwrap();
+        let _g = lock();
         std::env::set_var("XDG_CACHE_HOME", "/tmp/xdg-cache");
         let p =
             resolve_output_path("assets/demo.webm", Some(Path::new("/cli/override.webm"))).unwrap();
@@ -86,7 +88,7 @@ mod tests {
 
     #[test]
     fn config_path_uses_xdg_config_home() {
-        let _g = ENV_LOCK.lock().unwrap();
+        let _g = lock();
         std::env::set_var("XDG_CONFIG_HOME", "/tmp/xdg-config");
         std::env::set_var("HOME", "/home/user");
         assert_eq!(
@@ -97,7 +99,7 @@ mod tests {
 
     #[test]
     fn config_path_xdg_unset_uses_home_fallback() {
-        let _g = ENV_LOCK.lock().unwrap();
+        let _g = lock();
         std::env::remove_var("XDG_CONFIG_HOME");
         std::env::set_var("HOME", "/home/user");
         assert_eq!(

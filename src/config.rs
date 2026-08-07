@@ -176,6 +176,7 @@ mod tests {
 
     #[test]
     fn load_missing_file_creates_default_and_returns_defaults() {
+        let _guard = crate::TEST_ENV_LOCK.lock().unwrap();
         let orig = std::env::var_os("XDG_CONFIG_HOME");
         let dir = std::env::temp_dir().join(format!("tapedeck-test-{}", std::process::id()));
         std::env::set_var("XDG_CONFIG_HOME", &dir);
@@ -260,6 +261,7 @@ dri = true
 
     #[test]
     fn save_writes_detected_and_preserves_rest() {
+        let _guard = crate::TEST_ENV_LOCK.lock().unwrap();
         let orig = std::env::var_os("XDG_CONFIG_HOME");
         let dir = std::env::temp_dir().join(format!("tapedeck-save-{}", std::process::id()));
         std::env::set_var("XDG_CONFIG_HOME", &dir);

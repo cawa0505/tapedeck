@@ -3,6 +3,10 @@ mod config;
 mod engine;
 mod paths;
 
+// 測試共用：序列化改 process-wide XDG env 的測試（Rust 預設並行，env var 是全域）
+#[cfg(test)]
+pub(crate) static TEST_ENV_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
 use anyhow::{bail, Result};
 use clap::Parser;
 use cli::{Cli, Commands};
