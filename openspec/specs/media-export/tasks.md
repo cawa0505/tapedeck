@@ -12,10 +12,10 @@
 
 ## T1：FfmpegAdapter 骨架
 
-- [ ] `src/media/ffmpeg.rs`：trait 定義 + `FfmpegAdapter::new()` 實作
-- [ ] `probe()`：偵測 palettegen/libwebp/ffmpeg 版本
-- [ ] 單元測試：mock ffmpeg stdout/stderr（Resilience 原則 4，Mock Subprocess）
-- [ ] 驗證：`cargo build` + `cargo test`
+- [x] `src/media/ffmpeg.rs`：trait 定義 + `FfmpegAdapter::new()` 實作（實作 struct 為 `FfmpegV1Adapter`，依 #2896 命名慣例）
+- [x] `probe()`：偵測 palettegen/libwebp/ffmpeg 版本
+- [x] 單元測試：mock ffmpeg stdout/stderr（Resilience 原則 4，Mock Subprocess）
+- [x] 驗證：`cargo build` + `cargo test`（52 tests，零警告）
 
 ## T2：optimize 子指令
 
