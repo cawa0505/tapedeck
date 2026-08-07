@@ -46,12 +46,12 @@
 - [ ] `--max-size MB`：[待討論] vhs 無 MaxSize 指令（已查 docs/ref/vhs-tape-format.md 無對應）— 選項：a) 僅提示無法直接套用 b) 由 optimize 後處理壓縮（屬 P1 media-export 範圍）c) 其他。實作前需定案
 - [x] 單元測試：flag 覆寫優先序（CLI > 腳本 > config defaults）— fps ×3 + 格式 ×3
 
-## T4：驗證（手動）
+## T4：驗證（手動）✅ 完成
 
-- [ ] `cargo build` 零 error
-- [ ] `cargo test` 通過（T1/T2 新增測試）
-- [ ] `./target/debug/tapedeck run --dry-run examples/*.roll` 三份全成功
-- [ ] `./target/debug/tapedeck run examples/test_tui.roll` 實際錄製 gif 成功（回歸）
+- [x] `cargo build` 零 error（零 warning 硬要求）
+- [x] `cargo test` 通過（30 tests）
+- [x] `./target/debug/tapedeck run --dry-run examples/*.roll` 三份全成功（engine/XDG 路徑正確）
+- [x] `./target/debug/tapedeck run examples/test_tui.roll` 實際錄製 gif 成功（回歸通過）
 
 ## T5：XDG config 讀寫（config.rs + paths.rs）✅ 完成
 
