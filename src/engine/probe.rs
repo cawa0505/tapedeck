@@ -4,14 +4,14 @@
 //! - ffmpeg 編碼器掃描（`av1_vaapi` → `vp9_vaapi` → `libvpx-vp9`）
 //! - `/dev/dri` 檢查（VA-API 裝置）
 //!
-//! 產出寫回 `config.toml [system.detected]`（`config::save`）。
-//! 觸發點：`tapedeck doctor`（未實作）或 `optimize`（media-export T2）使用 `encoder_fallback` 時。
+//! 產出寫回 `config.toml [system.detected]`（`config::save`，doctor T7）。
+//! `encoder_fallback` 的消費端為 NativeEngine 錄製編碼器選擇（未接線）。
 
 use std::process::Command;
 
 /// 硬體能力探測結果
 #[derive(Debug, Clone, Default, PartialEq)]
-// ponytail: 消費端（doctor / optimize T2）未實作，先保留 API
+// ponytail: 消費端（NativeEngine 錄製編碼器選擇）未接線，先保留 API
 #[allow(dead_code)]
 pub struct HardwareCapabilities {
     /// 可用編碼器清單（ffmpeg -encoders 掃描）
@@ -76,7 +76,7 @@ fn parse_encoders(output: &str) -> Vec<String> {
 /// - `requested` 指定且可用 → 原樣使用
 /// - 否則依鏈找第一個可用編碼器
 /// - 全部不可用 → `None`（呼叫方報錯）
-// ponytail: 消費端（optimize T2）未實作，先保留 API
+// ponytail: 消費端（NativeEngine 錄製編碼器選擇）未接線，先保留 API
 #[allow(dead_code)]
 pub fn encoder_fallback(caps: &HardwareCapabilities, requested: Option<&str>) -> Option<String> {
     if let Some(r) = requested.filter(|r| caps.has_encoder(r)) {

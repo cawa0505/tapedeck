@@ -53,10 +53,16 @@ pub struct LinkArgs {
 pub struct OptimizeArgs {
     #[arg(required = true)]
     pub input: PathBuf,
-    #[arg(short, required = true)]
-    pub output: PathBuf,
+    #[arg(short, long)]
+    pub output: Option<PathBuf>, // 預設依 input 副檔名推斷（XDG）
+    #[arg(long)]
+    pub format: Option<String>, // gif/webp；預設依 output 副檔名推斷
     #[arg(long, default_value_t = 80)]
-    pub quality: u8, // 1-100
+    pub quality: u8, // 1-100（webp）
+    #[arg(long, default_value_t = 10)]
+    pub fps: u32, // palettegen 抽樣 fps
+    #[arg(long)]
+    pub dry_run: bool, // 顯示指令鏈，不執行
 }
 
 #[derive(Args)]

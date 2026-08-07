@@ -10,7 +10,7 @@ mod paths;
 #[cfg(test)]
 pub(crate) static TEST_ENV_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
 
-use anyhow::{bail, Result};
+use anyhow::Result;
 use clap::Parser;
 use cli::{Cli, Commands};
 
@@ -36,7 +36,17 @@ async fn run() -> Result<()> {
                 engine::dispatcher::media_link(&args.media_file, &args.format)?
             );
         }
-        Commands::Optimize(_) => bail!("optimize is not implemented yet"),
+        Commands::Optimize(args) => {
+            let opts = media::optimize::OptimizeOptions {
+                input: args.input,
+                output: args.output,
+                format: args.format,
+                quality: args.quality,
+                fps: args.fps,
+                dry_run: args.dry_run,
+            };
+            media::optimize::optimize(&opts)?;
+        }
         Commands::Clean(args) => {
             let tracker = db::AssetTracker::open()?;
             let orphans = tracker.orphans(&std::env::current_dir()?)?;

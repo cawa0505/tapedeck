@@ -2,12 +2,15 @@
 //!
 //! 以子程序呼叫 ffmpeg，不新增 crate 依賴（design.md）。
 //! `probe()` 偵測 palettegen filter 與 libwebp encoder（Resilience 原則 2）。
-//! 解析邏輯抽成純函式，單元測試直接餵 mock 輸出字串（Resilience 原則 4）。
+//! 指令組裝抽成 `*_cmd` 純函式，供 optimize 的 dry-run 顯示與單元測試
+//! 直接斷言（Resilience 原則 4，Mock Subprocess）。
 
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
-use anyhow::Result;
+use anyhow::{bail, Result};
+
+use crate::paths;
 
 /// 探測結果：media 能力
 #[derive(Debug, Clone, PartialEq)]
@@ -18,12 +21,12 @@ pub struct MediaCapabilities {
 }
 
 /// ffmpeg 適配器 trait（design.md 定案 API）
-// ponytail: palettegen/paletteuse/to_webp/extract_frame/hstack 由 T2/T4 實作，先定義契約
+// ponytail: extract_frame/hstack 由 T4 實作，先定義契約
 #[allow(dead_code)]
 pub trait FfmpegAdapter {
     /// 版本與能力探針：確認 palettegen/libwebp 可用
     fn probe(&self) -> Result<MediaCapabilities>;
-    /// pass1：生成調色盤
+    /// pass1：生成調色盤（回傳調色盤路徑）
     fn palettegen(&self, input: &Path, fps: u32) -> Result<PathBuf>;
     /// pass2：套用調色盤輸出 GIF
     fn paletteuse(&self, input: &Path, palette: &Path, output: &Path, fps: u32) -> Result<()>;
@@ -35,15 +38,11 @@ pub trait FfmpegAdapter {
     fn hstack(&self, frames: &[PathBuf], output: &Path) -> Result<()>;
 }
 
-/// 預設實作（T1：僅 probe；其餘 T2/T4）
+/// 預設實作
 #[derive(Debug, Default)]
-// ponytail: 消費端（optimize T2 / filmstrip T4）未實作，先保留 API
-#[allow(dead_code)]
 pub struct FfmpegV1Adapter;
 
 impl FfmpegV1Adapter {
-    // ponytail: 消費端（optimize T2）未實作，先保留
-    #[allow(dead_code)]
     pub fn new() -> Self {
         Self
     }
@@ -58,16 +57,18 @@ impl FfmpegAdapter for FfmpegV1Adapter {
         })
     }
 
-    fn palettegen(&self, _input: &Path, _fps: u32) -> Result<PathBuf> {
-        unimplemented!("T2 optimize")
+    fn palettegen(&self, input: &Path, fps: u32) -> Result<PathBuf> {
+        let palette = palette_path(input);
+        run_ffmpeg_strict(&palettegen_cmd(input, fps, &palette), "palettegen")?;
+        Ok(palette)
     }
 
-    fn paletteuse(&self, _input: &Path, _palette: &Path, _output: &Path, _fps: u32) -> Result<()> {
-        unimplemented!("T2 optimize")
+    fn paletteuse(&self, input: &Path, palette: &Path, output: &Path, fps: u32) -> Result<()> {
+        run_ffmpeg_strict(&paletteuse_cmd(input, palette, output, fps), "paletteuse")
     }
 
-    fn to_webp(&self, _input: &Path, _output: &Path, _quality: u8) -> Result<()> {
-        unimplemented!("T2 optimize")
+    fn to_webp(&self, input: &Path, output: &Path, quality: u8) -> Result<()> {
+        run_ffmpeg_strict(&to_webp_cmd(input, output, quality), "libwebp")
     }
 
     fn extract_frame(&self, _input: &Path, _ts_ms: u64, _out: &Path) -> Result<()> {
@@ -77,6 +78,71 @@ impl FfmpegAdapter for FfmpegV1Adapter {
     fn hstack(&self, _frames: &[PathBuf], _output: &Path) -> Result<()> {
         unimplemented!("T4 filmstrip")
     }
+}
+
+/// 調色盤暫存路徑：`~/.cache/tapedeck/<input-stem>.palette.png`（非輸出，用完即刪）
+pub(crate) fn palette_path(input: &Path) -> PathBuf {
+    let stem = input
+        .file_stem()
+        .map(|s| s.to_string_lossy().into_owned())
+        .unwrap_or_else(|| "palette".to_string());
+    paths::cache_dir().join(format!("{stem}.palette.png"))
+}
+
+/// pass1 指令：`ffmpeg -y -i <in> -vf "fps=<n>,palettegen=max_colors=256" <palette>`
+pub(crate) fn palettegen_cmd(input: &Path, fps: u32, palette: &Path) -> Vec<String> {
+    vec![
+        "-y".into(),
+        "-i".into(),
+        input.to_string_lossy().into_owned(),
+        "-vf".into(),
+        format!("fps={fps},palettegen=max_colors=256"),
+        palette.to_string_lossy().into_owned(),
+    ]
+}
+
+/// pass2 指令：`ffmpeg -y -i <in> -i <palette> -lavfi "fps=<n> [x];[x][1:v] paletteuse=dither=bayer:bayer_scale=5" <out>`
+pub(crate) fn paletteuse_cmd(input: &Path, palette: &Path, output: &Path, fps: u32) -> Vec<String> {
+    vec![
+        "-y".into(),
+        "-i".into(),
+        input.to_string_lossy().into_owned(),
+        "-i".into(),
+        palette.to_string_lossy().into_owned(),
+        "-lavfi".into(),
+        format!("fps={fps} [x];[x][1:v] paletteuse=dither=bayer:bayer_scale=5"),
+        output.to_string_lossy().into_owned(),
+    ]
+}
+
+/// WebP 指令：`ffmpeg -y -i <in> -c:v libwebp -quality <q> <out>`
+pub(crate) fn to_webp_cmd(input: &Path, output: &Path, quality: u8) -> Vec<String> {
+    vec![
+        "-y".into(),
+        "-i".into(),
+        input.to_string_lossy().into_owned(),
+        "-c:v".into(),
+        "libwebp".into(),
+        "-quality".into(),
+        quality.to_string(),
+        output.to_string_lossy().into_owned(),
+    ]
+}
+
+/// 執行 ffmpeg，失敗回傳錯誤（含 stderr 摘要）
+fn run_ffmpeg_strict(args: &[String], step: &str) -> Result<()> {
+    let out = Command::new("ffmpeg")
+        .args(args)
+        .output()
+        .map_err(|e| anyhow::anyhow!("無法執行 ffmpeg（{step}）：{e}"))?;
+    if !out.status.success() {
+        let stderr = String::from_utf8_lossy(&out.stderr);
+        bail!(
+            "ffmpeg {step} 失敗：{}",
+            stderr.trim().lines().last().unwrap_or_default()
+        );
+    }
+    Ok(())
 }
 
 /// 執行 `ffmpeg <args>` 並回傳 stdout（失敗 → None，lenient）
