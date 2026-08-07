@@ -69,17 +69,33 @@
 - [x] 單元測試：config 路徑（XDG set/unset）、輸出路徑解析（相對/絕對/CLI 覆寫/XDG set/unset）
 - [x] `run()` 載入 config 並套用 `[defaults]`（腳本未指定時）
 
-## T6：硬體探針（engine/probe.rs）— 待實作
+## T6：硬體探針（engine/probe.rs）✅ 完成（5427655）
 
-- [ ] `engine/probe.rs` 實作 `HardwareCapabilities::probe_system()`：
-  - [ ] ffmpeg 編碼器掃描（`ffmpeg -encoders`）：av1_vaapi → vp9_vaapi → libvpx-vp9 存在性
-  - [ ] `/dev/dri` 檢查（VA-API 裝置存在與否）
-- [ ] `encoder_fallback(probe, requested)`：依探針結果三階降級（AV1 HW → VP9 HW → VP9 SW），未探測到則直接 SW
-- [ ] config 寫入 `[system.detected]`（probe 產出後寫回，含 `save()`）
-- [ ] 單元測試：fallback 鏈（mock probe）
-- [ ] 實作後把 OQ-05 落點 `src/engine/probe.rs` 改為實際模組宣告（移除 `pub mod hardware_probe {}` 空殼）
+- [x] `engine/probe.rs` 實作 `HardwareCapabilities::probe_system()`：
+  - [x] ffmpeg 編碼器掃描（`ffmpeg -encoders`）：av1_vaapi → vp9_vaapi → libvpx-vp9 存在性
+  - [x] `/dev/dri` 檢查（VA-API 裝置存在與否）
+- [x] `encoder_fallback(probe, requested)`：依探針結果三階降級（AV1 HW → VP9 HW → VP9 SW），未探測到則直接 SW
+- [x] config 寫入 `[system.detected]`（probe 產出後寫回，含 `save()`）
+- [x] 單元測試：fallback 鏈（mock probe）+ save/upsert（段落級更新，保留註解）
+- [x] 掛載 `pub mod probe;`（空殼已於 T5 移除，無殘留）
+- [x] 測試序列化：crate::TEST_ENV_LOCK（跨模組 XDG env race 修正）
 
-## T7：SQLite 資產圖譜（src/db.rs）— 待實作
+## T7：tapedeck doctor（src/doctor.rs）— 待實作
+
+規格來源：Resilience 原則 2（project.md）+ 用戶參考設計（結構化 deps 表）。依賴 T6 的 probe（doctor 是探針的 CLI 消費端，實作後解除 probe.rs/config.rs 的 `allow(dead_code)`）。
+
+- [ ] 新增 `src/doctor.rs`：`run_doctor()` — 結構化 deps 表（名稱、檢查指令、用途說明 Hint）
+  - [ ] deps 表：vhs（`--version`）、ffmpeg（`-version`）、wf-recorder（`-v`）— 用 `--version` 實作檢查（非 which，可偵測損壞/權限不足）
+  - [ ] 靜默執行（stdout/stderr 丟棄），只關心存不存在
+  - [ ] 逐項輸出 ✅ OK / ❌ MISSING + Hint（解釋為何需要該工具）
+  - [ ] 結束時總評（all systems go / missing 列表）
+  - [ ] 調用 `probe::probe_system()` + `config::save()` 寫回 `[system.detected]`
+- [ ] `cli.rs` 新增 `doctor` 子指令並接到 `run_doctor()`
+- [ ] 單元測試：mock 工具存在/缺失的輸出格式（不實際執行外部工具）
+- [ ] 完成後移除 probe.rs / config.rs 的 `#[allow(dead_code)]`（doctor 成為消費端）
+- [ ] 完成後更新 project.md 原則 2 狀態與變更集索引
+
+## T8：SQLite 資產圖譜（src/db.rs）— 待實作
 
 規格來源：OQ-04（project.md:132）+ Pillar 2（project.md:248）。MVP 範圍含 Asset Graph + 孤兒掃描；Re-roll 為 `[待討論]`（需新 change-set，非本次）。
 
