@@ -1,0 +1,4 @@
+# Netlify 設定 — gh-pages 分支部署（astro 文件站）
+[build]
+  command = "npm install && npm run build"
+  publish = "dist"
