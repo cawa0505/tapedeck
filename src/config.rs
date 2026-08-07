@@ -96,8 +96,6 @@ const DEFAULT_CONFIG_TEMPLATE: &str = r#"# Tapedeck 設定檔（XDG Base Directo
 
 /// 寫回探測結果到 `[system.detected]`（probe/doctor 產出後呼叫）。
 /// 只更新該段落，保留檔案其餘內容（含註解範例與 `[defaults]`）。
-// ponytail: 消費端（probe 寫回 / doctor）未實作，先保留 API
-#[allow(dead_code)]
 pub fn save(system: &System) -> Result<()> {
     let path = config_path();
     if let Some(parent) = path.parent() {

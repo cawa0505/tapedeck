@@ -18,6 +18,8 @@ pub enum Commands {
     Optimize(OptimizeArgs),
     /// 清理孤兒資產
     Clean(CleanArgs),
+    /// 檢查系統依賴與硬體能力
+    Doctor,
 }
 
 #[derive(Args)]

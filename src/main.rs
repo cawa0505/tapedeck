@@ -1,5 +1,6 @@
 mod cli;
 mod config;
+mod doctor;
 mod engine;
 mod paths;
 
@@ -32,6 +33,7 @@ async fn run() -> Result<()> {
         }
         Commands::Optimize(_) => bail!("optimize is not implemented yet"),
         Commands::Clean(_) => bail!("clean is not implemented yet"),
+        Commands::Doctor => doctor::run_doctor(),
     }
 
     Ok(())

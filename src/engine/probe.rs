@@ -24,8 +24,6 @@ pub struct HardwareCapabilities {
 
 impl HardwareCapabilities {
     /// 掃描系統：ffmpeg 編碼器 + /dev/dri
-    // ponytail: 消費端（doctor / optimize T2）未實作，先保留 API
-    #[allow(dead_code)]
     pub fn probe_system() -> Self {
         let encoders = scan_ffmpeg_encoders();
         let dri = std::path::Path::new("/dev/dri").exists();
@@ -38,8 +36,6 @@ impl HardwareCapabilities {
     }
 
     /// 是否支援指定編碼器
-    // ponytail: 消費端未實作，先保留 API
-    #[allow(dead_code)]
     pub fn has_encoder(&self, name: &str) -> bool {
         self.encoders.iter().any(|e| e == name)
     }
