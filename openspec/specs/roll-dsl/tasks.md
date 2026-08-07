@@ -37,6 +37,15 @@
 - [ ] `#[serde(ignore_unknown_fields)]` 加到 NiriWindow/NiriLayout/NiriGeometry/SwayNode/SwayRect
 - [ ] WaitWindow 輪詢（dispatcher 側呼叫，200ms 間隔）
 
+## T4b：CLI run flag 接線（dispatcher.rs）✅ 完成
+
+規格來源：`project.md:181` — `tapedeck run SCRIPT_FILE [--output] [--fps] [--max-size] [--gif|--webp] [--dry-run]`
+
+- [x] `--fps FPS`：覆寫腳本 fps（優先序 CLI > 腳本 > config），轉譯層輸出 `Set Framerate <n>`
+- [x] `--gif|--webp`：覆寫輸出路徑副檔名（vhs 以 Output 副檔名決定格式，見 docs/ref/vhs-tape-format.md:9）
+- [ ] `--max-size MB`：[待討論] vhs 無 MaxSize 指令（已查 docs/ref/vhs-tape-format.md 無對應）— 選項：a) 僅提示無法直接套用 b) 由 optimize 後處理壓縮（屬 P1 media-export 範圍）c) 其他。實作前需定案
+- [x] 單元測試：flag 覆寫優先序（CLI > 腳本 > config defaults）— fps ×3 + 格式 ×3
+
 ## T4：驗證（手動）
 
 - [ ] `cargo build` 零 error

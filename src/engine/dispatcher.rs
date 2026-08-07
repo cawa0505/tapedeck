@@ -367,23 +367,48 @@ fn parse_engine_str(s: &str) -> Option<Engine> {
 }
 
 /// CLI 入口：解析 .roll 腳本並依引擎分派
+/// T4b：--fps 覆寫優先序（CLI > 腳本 > config defaults）
+fn apply_fps_precedence(script_fps: &mut Option<u32>, cli_fps: Option<u32>, cfg_fps: Option<u32>) {
+    if let Some(fps) = cli_fps {
+        *script_fps = Some(fps);
+    } else if script_fps.is_none() {
+        *script_fps = cfg_fps;
+    }
+}
+
+/// T4b：--gif|--webp 覆寫輸出格式（vhs 以副檔名決定格式）
+fn apply_format_override(output: &mut PathBuf, gif: bool, webp: bool) {
+    let ext = if gif {
+        Some("gif")
+    } else if webp {
+        Some("webp")
+    } else {
+        None
+    };
+    if let Some(ext) = ext {
+        output.set_extension(ext);
+    }
+}
+
 pub async fn run(args: RunArgs) -> Result<()> {
     let cfg = crate::config::load()?;
     let mut script = crate::engine::roll_parser::parse_roll_script(&args.script_file)?;
 
-    // REQ-6.5 [defaults]：腳本未指定才套用設定檔預設
+    // REQ-6.5 [defaults]：腳本未指定才套用設定檔預設（engine）
     if script.engine.is_none() {
         script.engine = cfg.defaults.engine.as_deref().and_then(parse_engine_str);
     }
-    if script.fps.is_none() {
-        script.fps = cfg.defaults.fps;
-    }
+    // T4b：--fps 覆寫（優先序 CLI > 腳本 > config）
+    apply_fps_precedence(&mut script.fps, args.fps, cfg.defaults.fps);
 
     let engine = resolve_engine(&script);
-    let output = resolve_output_path(
+    let mut output = resolve_output_path(
         script.output.as_deref().unwrap_or("output.webm"),
         args.output.as_deref(),
     )?;
+
+    // T4b：--gif|--webp 覆寫輸出格式（vhs 以 Output 副檔名決定格式，見 ref/vhs-tape-format.md:9）
+    apply_format_override(&mut output, args.gif, args.webp);
 
     if args.dry_run {
         // REQ-5 + REQ-6.3：印出引擎/輸出（解析後絕對路徑）/fps/指令摘要
@@ -537,5 +562,47 @@ mod tests {
             ..sample_script()
         };
         assert_eq!(resolve_engine(&s), Engine::Native);
+    }
+
+    #[test]
+    fn fps_cli_overrides_script_and_config() {
+        let mut fps = Some(15);
+        apply_fps_precedence(&mut fps, Some(30), Some(60));
+        assert_eq!(fps, Some(30)); // CLI 最大優先
+    }
+
+    #[test]
+    fn fps_config_fills_when_script_unset() {
+        let mut fps = None;
+        apply_fps_precedence(&mut fps, None, Some(60));
+        assert_eq!(fps, Some(60)); // config 只填腳本未指定時
+    }
+
+    #[test]
+    fn fps_script_kept_when_no_cli() {
+        let mut fps = Some(15);
+        apply_fps_precedence(&mut fps, None, Some(60));
+        assert_eq!(fps, Some(15)); // 腳本優先於 config
+    }
+
+    #[test]
+    fn format_gif_overrides_extension() {
+        let mut out = PathBuf::from("/cache/demo.webm");
+        apply_format_override(&mut out, true, false);
+        assert_eq!(out, PathBuf::from("/cache/demo.gif"));
+    }
+
+    #[test]
+    fn format_webp_overrides_extension() {
+        let mut out = PathBuf::from("demo.webm");
+        apply_format_override(&mut out, false, true);
+        assert_eq!(out, PathBuf::from("demo.webp"));
+    }
+
+    #[test]
+    fn format_none_keeps_extension() {
+        let mut out = PathBuf::from("demo.webm");
+        apply_format_override(&mut out, false, false);
+        assert_eq!(out, PathBuf::from("demo.webm"));
     }
 }
