@@ -5,3 +5,4 @@
 
 pub mod ffmpeg;
 pub mod optimize;
+pub mod timeline;

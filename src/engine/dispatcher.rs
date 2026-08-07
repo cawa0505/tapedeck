@@ -53,6 +53,22 @@ fn find_cmd(script: &Script, pred: fn(&ScriptCommand) -> bool) -> Option<&Script
     script.commands.iter().find(|c| pred(c))
 }
 
+/// 操作時間點日誌：以腳本時序推算 → `state_dir/<stem>.timeline.jsonl`（T3）
+fn write_timeline(script: &Script, output: &Path) -> Result<()> {
+    use crate::media::timeline::{compute_timeline, write_jsonl};
+
+    let points = compute_timeline(script);
+    if points.is_empty() {
+        return Ok(());
+    }
+    let stem = output
+        .file_stem()
+        .map(|s| s.to_string_lossy().into_owned())
+        .unwrap_or_else(|| "output".to_owned());
+    let path = crate::paths::state_dir().join(format!("{stem}.timeline.jsonl"));
+    write_jsonl(&path, &points)
+}
+
 // ─────────────────────────────────────────────
 // vhs 後端（TUI）：.roll → .tape → vhs
 // ─────────────────────────────────────────────
@@ -262,6 +278,10 @@ impl RecordingEngine for NativeEngine {
             .with_context(|| {
                 format!("failed to start {executable}; install wf-recorder or set WF_RECORDER")
             })?;
+
+        // 操作時間點日誌（T3）：腳本時序推算，寫入 state_dir/<stem>.timeline.jsonl
+        // （OQ-02 輸入注入未接線前以推算為準；filmstrip 以 ms 抽幀）
+        write_timeline(script, &self.output)?;
 
         let status = match find_cmd(script, |c| matches!(c, ScriptCommand::Roll(_))) {
             Some(ScriptCommand::Roll(secs)) => {
