@@ -227,6 +227,45 @@ tapedeck clean [--dry-run]
 - **權限隔離**：錄製流程以使用者權限執行
 - **資料庫加密**：tapedeck.db 未來支援 SQLCipher
 
+## 6.1 功能支柱（Product Pillars）
+
+產品定位為「內容工程工作檯」，四大功能支柱。覆蓋度分析：P2/P3/P4 已由 OQ-04/07/06 定案（決策層級），P1 與各支柱的執行細節（工具參數、資料模型、UX 流程）尚未寫入變更集規格。
+
+### Pillar 1：影格處理與膠捲生成（Filmstrip）🎞️ — `[待討論]`
+
+**Smart GIF/WebP Export**：錄完後自動壓製靜態媒體（供 README/Medium 嵌入）：
+- palettegen 雙重 Pass 調色盤生成（高畫質、零雜訊、小體積）
+- 輸出：GIF 或 WebP
+
+**Markdown 膠捲步驟圖（Filmstrip Step Sheet）**：
+- 依 .roll 內 `Click`/`Type` 時間點自動切出 3~5 張代表性 PNG 影格
+- 自動拼成橫向「操作步驟分解圖」（靜態圖文教學）
+
+- **對應**：OQ-03（MediaOptimizer 角色）、OQ-04（影格快取索引）
+- **現況**：✅ 文件已建立（`specs/media-export/` 四件套，T1~T5 任務分解）；3 個執行細節 `[待討論]`（操作點合併閾值、影格間距/標籤、Screenshot 編號對應）
+- **落點**：`src/media/`（ffmpeg.rs + optimize.rs + filmstrip.rs + timeline.rs）、ffmpeg 適配器、Cargo.toml（無新增依賴）
+
+### Pillar 2：SQLite 資產圖譜（tapedeck db）🗄️ — ✅ OQ-04 已定案（Re-roll `[待討論]`）
+
+- **引用追蹤（Asset Graph）**：`Demo.roll ➔ assets/demo.webm ➔ docs/README.md:42` 三層關聯
+- **孤兒掃描（tapedeck clean）**：掃 .md 引用，清除無引用廢棄影片
+- **Re-roll（動態批次重錄）**：`tapedeck reroll` 搜尋專案所有 .roll，於背景 Niri/Sway Workspace 全部重錄 — `[待討論]`（OQ-04 未含此指令，需新 change-set）
+- **落點**：`src/db.rs`（已定案）、`src/cli.rs`（reroll 子指令待議）
+
+### Pillar 3：MCP 視覺自我驗證閉環 🤖 — ✅ OQ-07 已定案
+
+- **record_and_inspect Tool**：Agent 呼叫執行 .roll
+- **影格抽樣回傳（Vision Feedback）**：錄完抽 3 張關鍵影格（PNG/Base64）回傳 Agent Context，Agent 以 Vision LLM 自行驗證（按鈕顏色/Layout/文字輸入）
+- **閉環**：錄製 → PNG 影格 → Vision 驗證，100% 自動化 E2E
+- **落點**：`src/mcp/tools.rs`（定案範圍內）；影格抽樣演算法細節待 Pillar 1 定案後同步
+
+### Pillar 4：TUI 終端導播台（Sixel/Kitty 逐幀預覽）🎛️ — ✅ OQ-06 已定案
+
+- **fzf 雙欄列表**：左 .roll 腳本 / 右已錄 .webm
+- **逐幀滾動預覽（Frame Scrubbing）**：Sixel / Kitty Graphics Protocol 於終端內顯示影片，方向鍵左右逐幀查看
+- **y 鍵一鍵複製**：`![](assets/demo.webm)` 或 Zola/Hugo Shortcode
+- **落點**：`src/tui/mod.rs`（定案範圍內，見 §3.2 布局）
+
 ## 7. 未來擴展
 
 1. **macOS/Windows 支援**（開放社群貢獻）
@@ -258,5 +297,7 @@ cargo bench -- --output-format bencher
 
 | 變更集 | 狀態 | 摘要 |
 |--------|------|------|
-| `specs/roll-dsl/` | 已定案（待實作） | .roll 語法定案、雙層執行（vhs 轉譯 + tapedeck 自動化） |
+| `specs/roll-dsl/` | 已定案（T1 完成，T2 待實作） | .roll 語法定案、雙層執行（vhs 轉譯 + tapedeck 自動化） |
+| `specs/media-export/` | 文件已建立（待審閱） | P1 靜態媒體壓製：optimize 雙 Pass + filmstrip 步驟圖；3 項 `[待討論]`（見 §6.1） |
 | §3 待確認決策 | **✅ 全部決策完成** | OQ-01（vhs 雙軌）、OQ-02（wtype+libei）、OQ-03（RecordingEngine trait）、OQ-04（完整 SQLite 資產圖譜）、OQ-05（probe+config+fallback 完整實作）、OQ-06（完整 TUI 導播台）、OQ-07（完整 MCP 工具）、OQ-08（vhs 全集 + 擴充指令）、OQ-09（v0.1 僅 Wayland，其餘社群貢獻） |
+| §6.1 功能支柱 | **P2/P3/P4 定案、P1 文件已建立** | Pillar 1（media-export 四件套完成，3 項細節 `[待討論]`）；P2（資產圖譜）OQ-04、Re-roll 待議；P3（MCP 閉環）OQ-07；P4（TUI 導播台）OQ-06 |
