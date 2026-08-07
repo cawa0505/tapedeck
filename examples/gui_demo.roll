@@ -1,0 +1,26 @@
+# GUI 示範腳本：Obsidian 自動化工作流
+Title "Obsidian Automation"
+Set Engine Native
+Set Output "assets/obsidian_demo.webm"
+
+# 啟動 Obsidian
+ExecBefore "obsidian"
+WaitWindow "Obsidian" timeout=10s
+
+# 視窗設定
+TargetWindow "Obsidian"
+WindowSize 1200 800
+Padding 20
+
+# 自動化操作
+Roll 15s
+MouseMove 500 300 speed=smooth
+Sleep 300ms
+Click Left
+Type "New note for tapedeck demo"
+Sleep 500ms
+Shortcut "Ctrl+S"
+
+# 結束並優化
+ExecAfter "pkill obsidian"
+Optimize AV1 encoder=av1_vaapi
