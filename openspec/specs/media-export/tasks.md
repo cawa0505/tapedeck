@@ -17,13 +17,13 @@
 - [x] 單元測試：mock ffmpeg stdout/stderr（Resilience 原則 4，Mock Subprocess）
 - [x] 驗證：`cargo build` + `cargo test`（52 tests，零警告）
 
-## T2：optimize 子指令
+## T2：optimize 子指令 ✅
 
-- [ ] `src/media/optimize.rs`：palettegen 雙 Pass + libwebp
-- [ ] `src/cli.rs`：`optimize` 子指令（--format/--quality/--fps/--output/--dry-run）
-- [ ] `src/lib.rs`/`src/main.rs` 註冊 media 模組
-- [ ] XDG 輸出解析（REQ-5，純 std）
-- [ ] 驗證：`tapedeck optimize examples/test_tui.gif --format webp --dry-run` 顯示正確指令鏈
+- [x] `src/media/optimize.rs`：palettegen 雙 Pass + libwebp
+- [x] `src/cli.rs`：`optimize` 子指令（--format/--quality/--fps/--output/--dry-run）
+- [x] `src/lib.rs`/`src/main.rs` 註冊 media 模組
+- [x] XDG 輸出解析（REQ-5，純 std）
+- [x] 驗證：`tapedeck optimize` dry-run 顯示正確指令鏈 + 實際 webm→gif / gif→webp 轉換成功
 
 ## T3：時間點日誌（Native 後端）
 
