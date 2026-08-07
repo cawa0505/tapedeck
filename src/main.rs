@@ -1,5 +1,7 @@
 mod cli;
+mod config;
 mod engine;
+mod paths;
 
 use anyhow::{bail, Result};
 use clap::Parser;

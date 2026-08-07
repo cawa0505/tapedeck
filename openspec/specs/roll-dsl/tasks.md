@@ -44,6 +44,25 @@
 - [ ] `./target/debug/tapedeck run --dry-run examples/*.roll` 三份全成功
 - [ ] `./target/debug/tapedeck run examples/test_tui.roll` 實際錄製 gif 成功（回歸）
 
+## T5：XDG config 讀寫（config.rs + paths.rs）✅ 完成
+
+- [x] 新增 `src/paths.rs`：共用 XDG helper（`xdg_dir` / `cache_dir` / `config_path` / `resolve_output_path`），dispatcher 改用共用版本（REQ-6）
+- [x] 新增 `src/config.rs`：`config_path()` 用 `xdg_dir("XDG_CONFIG_HOME", ".config", "tapedeck/config.toml")`（REQ-6.5）
+- [x] `Config` struct：`[defaults]`（output、engine、fps、encoder）+ `[system.detected]`（encoder 清單、vaapi、dri）
+- [x] 讀取：檔案不存在 → 回傳預設值並提示路徑；存在 → 解析（未知欄位忽略）
+- [x] 單元測試：config 路徑（XDG set/unset）、輸出路徑解析（相對/絕對/CLI 覆寫/XDG set/unset）
+- [x] `run()` 載入 config 並套用 `[defaults]`（腳本未指定時）
+
+## T6：硬體探針（engine/probe.rs）— 待實作
+
+- [ ] `engine/probe.rs` 實作 `HardwareCapabilities::probe_system()`：
+  - [ ] ffmpeg 編碼器掃描（`ffmpeg -encoders`）：av1_vaapi → vp9_vaapi → libvpx-vp9 存在性
+  - [ ] `/dev/dri` 檢查（VA-API 裝置存在與否）
+- [ ] `encoder_fallback(probe, requested)`：依探針結果三階降級（AV1 HW → VP9 HW → VP9 SW），未探測到則直接 SW
+- [ ] config 寫入 `[system.detected]`（probe 產出後寫回，含 `save()`）
+- [ ] 單元測試：fallback 鏈（mock probe）
+- [ ] 實作後把 OQ-05 落點 `src/engine/probe.rs` 改為實際模組宣告（移除 `pub mod hardware_probe {}` 空殼）
+
 ## 完成定義（Definition of Done）
 
 - [ ] 三份 examples 全部可 dry-run

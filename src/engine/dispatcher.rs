@@ -1,5 +1,6 @@
 use crate::cli::RunArgs;
 use crate::engine::roll_parser::{ClickType, Engine, Script, ScriptCommand};
+use crate::paths::resolve_output_path;
 use anyhow::{bail, Context, Result};
 use async_trait::async_trait;
 use std::fmt::Write as _;
@@ -7,37 +8,6 @@ use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
 use tokio::process::Command as TokioCommand;
 use tokio::time::sleep;
-
-// ─────────────────────────────────────────────
-// XDG 路徑解析（REQ-6）
-// ─────────────────────────────────────────────
-
-/// `$XDG_*_HOME/<sub>` 或 `$HOME/<fallback>/<sub>`
-fn xdg_dir(var: &str, fallback: &str, sub: &str) -> PathBuf {
-    let base = std::env::var_os(var).map(PathBuf::from).unwrap_or_else(|| {
-        std::env::var_os("HOME")
-            .map(|h| PathBuf::from(h).join(fallback))
-            .unwrap_or_else(|| PathBuf::from("/tmp"))
-    });
-    base.join(sub)
-}
-
-/// 輸出快取目錄（REQ-6.1）
-fn cache_dir() -> PathBuf {
-    xdg_dir("XDG_CACHE_HOME", ".cache", "tapedeck")
-}
-
-/// 輸出路徑解析（REQ-6.1）：CLI 覆寫/絕對路徑照原樣；相對 → XDG cache
-fn resolve_output_path(script_output: &str, cli_override: Option<&Path>) -> Result<PathBuf> {
-    if let Some(p) = cli_override {
-        return Ok(p.to_path_buf()); // CLI 顯式覆寫，照原樣
-    }
-    let p = Path::new(script_output);
-    if p.is_absolute() {
-        return Ok(p.to_path_buf()); // 絕對路徑照原樣
-    }
-    Ok(cache_dir().join(p))
-}
 
 // ─────────────────────────────────────────────
 // 錄影引擎抽象層（OQ-03 定案）
@@ -386,9 +356,29 @@ fn resolve_engine(script: &Script) -> Engine {
     }
 }
 
+/// 設定檔 [defaults].engine 字串 → Engine（未知值回 None，維持 Auto 意圖）
+fn parse_engine_str(s: &str) -> Option<Engine> {
+    match s.to_ascii_lowercase().as_str() {
+        "vhs" => Some(Engine::Vhs),
+        "native" => Some(Engine::Native),
+        "auto" => Some(Engine::Auto),
+        _ => None,
+    }
+}
+
 /// CLI 入口：解析 .roll 腳本並依引擎分派
 pub async fn run(args: RunArgs) -> Result<()> {
-    let script = crate::engine::roll_parser::parse_roll_script(&args.script_file)?;
+    let cfg = crate::config::load()?;
+    let mut script = crate::engine::roll_parser::parse_roll_script(&args.script_file)?;
+
+    // REQ-6.5 [defaults]：腳本未指定才套用設定檔預設
+    if script.engine.is_none() {
+        script.engine = cfg.defaults.engine.as_deref().and_then(parse_engine_str);
+    }
+    if script.fps.is_none() {
+        script.fps = cfg.defaults.fps;
+    }
+
     let engine = resolve_engine(&script);
     let output = resolve_output_path(
         script.output.as_deref().unwrap_or("output.webm"),
@@ -515,47 +505,6 @@ mod tests {
         };
         let tape = script_to_tape_content(&s, Path::new("/tmp/o.webm")).unwrap();
         assert!(tape.contains("Enter 2"));
-    }
-
-    // ── resolve_output_path（REQ-6）──
-
-    /// 環境變數測試需序列化執行（std::env 全域）
-    static ENV_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
-
-    #[test]
-    fn output_path_relative_uses_xdg_cache() {
-        let _g = ENV_LOCK.lock().unwrap();
-        std::env::set_var("XDG_CACHE_HOME", "/tmp/xdg-cache");
-        std::env::set_var("HOME", "/home/user");
-        let p = resolve_output_path("assets/demo.webm", None).unwrap();
-        assert_eq!(p, PathBuf::from("/tmp/xdg-cache/tapedeck/assets/demo.webm"));
-    }
-
-    #[test]
-    fn output_path_xdg_unset_uses_home_fallback() {
-        let _g = ENV_LOCK.lock().unwrap();
-        std::env::remove_var("XDG_CACHE_HOME");
-        std::env::set_var("HOME", "/home/user");
-        let p = resolve_output_path("assets/demo.webm", None).unwrap();
-        assert_eq!(
-            p,
-            PathBuf::from("/home/user/.cache/tapedeck/assets/demo.webm")
-        );
-    }
-
-    #[test]
-    fn output_path_absolute_kept() {
-        let p = resolve_output_path("/var/tmp/demo.webm", None).unwrap();
-        assert_eq!(p, PathBuf::from("/var/tmp/demo.webm"));
-    }
-
-    #[test]
-    fn output_path_cli_override_wins() {
-        let _g = ENV_LOCK.lock().unwrap();
-        std::env::set_var("XDG_CACHE_HOME", "/tmp/xdg-cache");
-        let p =
-            resolve_output_path("assets/demo.webm", Some(Path::new("/cli/override.webm"))).unwrap();
-        assert_eq!(p, PathBuf::from("/cli/override.webm"));
     }
 
     // ── resolve_engine（REQ-4.3 Auto）──
