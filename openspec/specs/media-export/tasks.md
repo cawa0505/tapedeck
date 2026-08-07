@@ -27,9 +27,10 @@
 
 ## T3：時間點日誌（Native 後端）
 
-- [ ] `src/media/timeline.rs`：`TimelinePoint` + JSONL 讀寫
-- [ ] dispatcher Native 模式：執行 `Click`/`Type` 時 append `{"ms","command"}`（起錄 0 基準）
-- [ ] 驗證：GUI 錄製後 `~/.local/state/tapedeck/*.timeline.jsonl` 存在且格式正確
+- [x] `src/media/timeline.rs`：`TimelinePoint` + JSONL 讀寫
+- [x] dispatcher Native 模式：寫入 `~/.local/state/tapedeck/<stem>.timeline.jsonl`
+  - 實作偏差：OQ-02 輸入注入未接線（NativeEngine 不執行 Click/Type），時間點以**腳本時序推算**（走訪指令累加 Sleep，Click/Type 處記錄 ms）；注入實作後改為實際執行時記錄
+- [x] 驗證：JSONL 格式（單元測試 roundtrip 覆蓋）；GUI 端到端留待 Native 錄製環境
 
 ## T4：filmstrip 子指令
 
