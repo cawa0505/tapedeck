@@ -94,6 +94,82 @@ const DEFAULT_CONFIG_TEMPLATE: &str = r#"# Tapedeck 設定檔（XDG Base Directo
 # dri = true
 "#;
 
+/// 寫回探測結果到 `[system.detected]`（probe/doctor 產出後呼叫）。
+/// 只更新該段落，保留檔案其餘內容（含註解範例與 `[defaults]`）。
+// ponytail: 消費端（probe 寫回 / doctor）未實作，先保留 API
+#[allow(dead_code)]
+pub fn save(system: &System) -> Result<()> {
+    let path = config_path();
+    if let Some(parent) = path.parent() {
+        std::fs::create_dir_all(parent)
+            .with_context(|| format!("建立設定目錄失敗: {}", parent.display()))?;
+    }
+    let raw = std::fs::read_to_string(&path).unwrap_or_default();
+    let detected = match &system.detected {
+        Some(d) => format_detected(d),
+        None => String::new(),
+    };
+    let updated = upsert_section(&raw, "[system.detected]", &detected);
+    std::fs::write(&path, updated).with_context(|| format!("寫入設定檔失敗: {}", path.display()))
+}
+
+/// 格式化 `[system.detected]` 段落（手動組字串，保留註解控制權）
+fn format_detected(d: &Detected) -> String {
+    let encs = d
+        .encoders
+        .iter()
+        .map(|e| format!("\"{e}\""))
+        .collect::<Vec<_>>()
+        .join(", ");
+    format!(
+        "[system.detected]\nencoders = [{encs}]\nvaapi = {}\ndri = {}\n",
+        d.vaapi, d.dri
+    )
+}
+
+/// 段落替換：找行首 `header`（排除註解行），替換到下一段落前；找不到 → 檔尾追加。
+/// `content` 為空字串時移除該段落。
+fn upsert_section(raw: &str, header: &str, content: &str) -> String {
+    let lines: Vec<&str> = raw.lines().collect();
+    let start = lines.iter().position(|l| {
+        let t = l.trim_start();
+        t.starts_with(header) && !t.starts_with('#')
+    });
+    let Some(i) = start else {
+        if content.is_empty() {
+            return raw.to_string();
+        }
+        let mut out = raw.trim_end().to_string();
+        out.push_str("\n\n");
+        out.push_str(content.trim_end());
+        out.push('\n');
+        return out;
+    };
+    // 段落結尾：下一行首為 `[` 的非註解行
+    let end = lines[i + 1..]
+        .iter()
+        .position(|l| {
+            let t = l.trim_start();
+            t.starts_with('[') && !t.starts_with('#')
+        })
+        .map(|j| i + 1 + j)
+        .unwrap_or(lines.len());
+    let mut out = String::new();
+    if i > 0 {
+        out.push_str(&lines[..i].join("\n"));
+        out.push('\n');
+    }
+    if !content.is_empty() {
+        out.push_str(content.trim_end());
+        out.push('\n');
+    }
+    if end < lines.len() {
+        out.push_str(&lines[end..].join("\n"));
+        out.push('\n');
+    }
+    out
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -142,5 +218,82 @@ dri = true
         let d = cfg.system.detected.unwrap();
         assert_eq!(d.encoders.len(), 2);
         assert!(d.vaapi);
+    }
+
+    #[test]
+    fn upsert_appends_when_section_missing() {
+        let raw = "# 註解\n[defaults]\nfps = 30\n";
+        let content = "[system.detected]\nencoders = [\"av1_vaapi\"]\nvaapi = true\ndri = true\n";
+        let out = upsert_section(raw, "[system.detected]", content);
+        assert!(out.contains("[system.detected]"));
+        assert!(out.contains("encoders = [\"av1_vaapi\"]"));
+        // 原內容保留
+        assert!(out.contains("[defaults]"));
+        assert!(out.contains("fps = 30"));
+    }
+
+    #[test]
+    fn upsert_replaces_existing_section_keeps_rest() {
+        let raw = "[defaults]\nfps = 30\n[system.detected]\nencoders = [\"old\"]\nvaapi = false\ndri = false\n";
+        let content = "[system.detected]\nencoders = [\"av1_vaapi\"]\nvaapi = true\ndri = true\n";
+        let out = upsert_section(raw, "[system.detected]", content);
+        assert!(!out.contains("old"));
+        assert!(out.contains("encoders = [\"av1_vaapi\"]"));
+        assert!(out.contains("vaapi = true"));
+        assert!(out.contains("[defaults]"));
+        assert!(out.contains("fps = 30"));
+    }
+
+    #[test]
+    fn upsert_ignores_commented_section() {
+        // 註解掉的 [system.detected] 不應被當成真實段落
+        let raw = "# [system.detected]\n# encoders = []\n[defaults]\n";
+        let content =
+            "[system.detected]\nencoders = [\"libvpx-vp9\"]\nvaapi = false\ndri = false\n";
+        let out = upsert_section(raw, "[system.detected]", content);
+        // 註解行保留，真實段落新增
+        assert!(out.contains("# [system.detected]"));
+        assert!(out.contains("encoders = [\"libvpx-vp9\"]"));
+        // 不重複
+        assert_eq!(out.matches("[system.detected]").count(), 2); // 註解 1 + 真實 1
+    }
+
+    #[test]
+    fn save_writes_detected_and_preserves_rest() {
+        let orig = std::env::var_os("XDG_CONFIG_HOME");
+        let dir = std::env::temp_dir().join(format!("tapedeck-save-{}", std::process::id()));
+        std::env::set_var("XDG_CONFIG_HOME", &dir);
+        let _ = std::fs::create_dir_all(&dir);
+
+        // 先建立預設檔
+        load().unwrap();
+        // 寫回偵測結果
+        let system = System {
+            detected: Some(Detected {
+                encoders: vec!["av1_vaapi".to_string(), "libvpx-vp9".to_string()],
+                vaapi: true,
+                dri: true,
+            }),
+        };
+        save(&system).unwrap();
+        let raw = std::fs::read_to_string(config_path()).unwrap();
+        assert!(raw.contains("[system.detected]"));
+        assert!(raw.contains("encoders = [\"av1_vaapi\", \"libvpx-vp9\"]"));
+        // [defaults] 註解範例保留
+        assert!(raw.contains("[defaults]"));
+
+        // 再讀回可解析且值一致
+        let cfg = load().unwrap();
+        let d = cfg.system.detected.unwrap();
+        assert!(d.vaapi);
+        assert!(d.dri);
+        assert_eq!(d.encoders.len(), 2);
+
+        let _ = std::fs::remove_dir_all(&dir);
+        if let Some(o) = orig {
+            std::env::set_var("XDG_CONFIG_HOME", o);
+        } else {
+            std::env::remove_var("XDG_CONFIG_HOME");
+        }
     }
 }
