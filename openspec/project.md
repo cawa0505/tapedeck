@@ -64,21 +64,23 @@ tapedeck 是一個專為 Linux 環境設計的雙模媒體錄影工具，提供 
 
 不要在錄到一半才發現引數不對。啟動時或執行 `tapedeck doctor` 時先探測：
 
-- 檢查 wf-recorder 是否支援特定引數（如 `-g` 幾何裁切）
-- 檢查 `ffmpeg -encoders` 是否包含 `av1_vaapi`
-- 檢查 `niri msg --version` 版本號
-- 主動提示過舊版本：`[WARN] wf-recorder version < 0.3.0 detected. Geometry padding feature might be disabled.`
+- 檢查 vhs / ffmpeg / wf-recorder 是否存在（`--version` 實作檢查，非 which — 可偵測損壞或權限不足）
+- 檢查 `ffmpeg -encoders` 是否包含 `av1_vaapi` 等硬體編碼器
+- 檢查 `/dev/dri` 是否存在（VA-API 硬體加速的物理前提）
+- 探測結果寫回 `~/.config/tapedeck/config.toml` 的 `[system.detected]` 段落（供 optimize 等後續指令讀取，避免每次執行重掃）
 
 ```rust
-// src/health/doctor.rs
-pub struct DependencyStatus {
-    pub name: &'static str,
-    pub installed: bool,
-    pub version: Option<String>,
-    pub supports_vaapi: bool,
-}
-pub async fn check_system_dependencies() -> Vec<DependencyStatus> { /* ... */ }
+// src/doctor.rs
+// 結構化 deps 表：新增依賴檢查只需加一行（名稱、版本旗標、用途說明）
+static DEPS: &[Dep] = &[
+    Dep { name: "vhs", version_flag: "--version", hint: "TUI 錄製與編排所需。" },
+    Dep { name: "ffmpeg", version_flag: "-version", hint: "影片編碼與處理所需。" },
+    Dep { name: "wf-recorder", version_flag: "-v", hint: "Wayland 螢幕錄製所需。" },
+];
+pub fn run_doctor() -> anyhow::Result<()> { /* 靜默執行 + ✅/❌ 逐項輸出 + 硬體探針寫回 */ }
 ```
+
+實作狀態：T7 完成 ✅（`tapedeck doctor` 子指令已上線，44 tests 通過，`[system.detected]` 寫回驗證成功）。
 
 ### 原則 3：強型別 JSON 解析與容錯（Lenient JSON Parsing）
 
@@ -297,7 +299,7 @@ cargo bench -- --output-format bencher
 
 | 變更集 | 狀態 | 摘要 |
 |--------|------|------|
-| `specs/roll-dsl/` | 已定案（T1 完成，T2 待實作） | .roll 語法定案、雙層執行（vhs 轉譯 + tapedeck 自動化） |
+| `specs/roll-dsl/` | 已定案（T1–T7 完成 ✅） | .roll 語法定案、雙層執行（vhs 轉譯 + tapedeck 自動化）、XDG 路徑/設定、doctor 依賴檢查 |
 | `specs/media-export/` | 文件已建立（待審閱） | P1 靜態媒體壓製：optimize 雙 Pass + filmstrip 步驟圖；3 項 `[待討論]`（見 §6.1） |
 | §3 待確認決策 | **✅ 全部決策完成** | OQ-01（vhs 雙軌）、OQ-02（wtype+libei）、OQ-03（RecordingEngine trait）、OQ-04（完整 SQLite 資產圖譜）、OQ-05（probe+config+fallback 完整實作）、OQ-06（完整 TUI 導播台）、OQ-07（完整 MCP 工具）、OQ-08（vhs 全集 + 擴充指令）、OQ-09（v0.1 僅 Wayland，其餘社群貢獻） |
 | §6.1 功能支柱 | **P2/P3/P4 定案、P1 文件已建立** | Pillar 1（media-export 四件套完成，3 項細節 `[待討論]`）；P2（資產圖譜）OQ-04、Re-roll 待議；P3（MCP 閉環）OQ-07；P4（TUI 導播台）OQ-06 |

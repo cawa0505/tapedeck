@@ -80,20 +80,20 @@
 - [x] 掛載 `pub mod probe;`（空殼已於 T5 移除，無殘留）
 - [x] 測試序列化：crate::TEST_ENV_LOCK（跨模組 XDG env race 修正）
 
-## T7：tapedeck doctor（src/doctor.rs）— 待實作
+## T7：tapedeck doctor（src/doctor.rs）— 完成 ✅
 
 規格來源：Resilience 原則 2（project.md）+ 用戶參考設計（結構化 deps 表）。依賴 T6 的 probe（doctor 是探針的 CLI 消費端，實作後解除 probe.rs/config.rs 的 `allow(dead_code)`）。
 
-- [ ] 新增 `src/doctor.rs`：`run_doctor()` — 結構化 deps 表（名稱、檢查指令、用途說明 Hint）
-  - [ ] deps 表：vhs（`--version`）、ffmpeg（`-version`）、wf-recorder（`-v`）— 用 `--version` 實作檢查（非 which，可偵測損壞/權限不足）
-  - [ ] 靜默執行（stdout/stderr 丟棄），只關心存不存在
-  - [ ] 逐項輸出 ✅ OK / ❌ MISSING + Hint（解釋為何需要該工具）
-  - [ ] 結束時總評（all systems go / missing 列表）
-  - [ ] 調用 `probe::probe_system()` + `config::save()` 寫回 `[system.detected]`
-- [ ] `cli.rs` 新增 `doctor` 子指令並接到 `run_doctor()`
-- [ ] 單元測試：mock 工具存在/缺失的輸出格式（不實際執行外部工具）
-- [ ] 完成後移除 probe.rs / config.rs 的 `#[allow(dead_code)]`（doctor 成為消費端）
-- [ ] 完成後更新 project.md 原則 2 狀態與變更集索引
+- [x] 新增 `src/doctor.rs`：`run_doctor()` — 結構化 deps 表（名稱、檢查指令、用途說明 Hint）
+  - [x] deps 表：vhs（`--version`）、ffmpeg（`-version`）、wf-recorder（`-v`）— 用 `--version` 實作檢查（非 which，可偵測損壞/權限不足）
+  - [x] 靜默執行（stdout/stderr 丟棄），只關心存不存在
+  - [x] 逐項輸出 ✅ OK / ❌ MISSING + Hint（解釋為何需要該工具）
+  - [x] 結束時總評（all systems go / missing 列表）
+  - [x] 調用 `probe::probe_system()` + `config::save()` 寫回 `[system.detected]`
+- [x] `cli.rs` 新增 `doctor` 子指令並接到 `run_doctor()`
+- [x] 單元測試：mock 工具存在/缺失的輸出格式（不實際執行外部工具）
+- [x] 完成後移除 probe.rs / config.rs 的 `#[allow(dead_code)]`（doctor 成為消費端）
+- [x] 完成後更新 project.md 原則 2 狀態與變更集索引
 
 ## T8：SQLite 資產圖譜（src/db.rs）— 待實作
 
