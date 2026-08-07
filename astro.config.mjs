@@ -2,5 +2,5 @@
 import { defineConfig } from 'astro/config';
 
 export default defineConfig({
-  site: 'https://tapedeck.cawa.dev',
+  site: 'https://tapedeck-rust.netlify.app',
 });
