@@ -111,4 +111,15 @@ mod tests {
         };
         assert!(!is_available(&missing));
     }
+
+    #[test]
+    fn is_available_finds_existing_tool() {
+        // POSIX 保證存在的工具 → true
+        let present = Dep {
+            name: "true",
+            version_flag: "--version",
+            hint: "test",
+        };
+        assert!(is_available(&present));
+    }
 }

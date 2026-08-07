@@ -252,7 +252,7 @@ tapedeck clean [--dry-run]
 - **引用追蹤（Asset Graph）**：`Demo.roll ➔ assets/demo.webm ➔ docs/README.md:42` 三層關聯
 - **孤兒掃描（tapedeck clean）**：掃 .md 引用，清除無引用廢棄影片
 - **Re-roll（動態批次重錄）**：`tapedeck reroll` 搜尋專案所有 .roll，於背景 Niri/Sway Workspace 全部重錄 — `[待討論]`（OQ-04 未含此指令，需新 change-set）
-- **落點**：`src/db.rs`（已定案）、`src/cli.rs`（reroll 子指令待議）
+- **落點**：`src/db.rs`（T8 完成 ✅ — `link` 登錄 + `clean` 孤兒掃描，.md 行號引用追蹤；Re-roll 子指令 `tapedeck reroll` 待議）
 
 ### Pillar 3：MCP 視覺自我驗證閉環 🤖 — ✅ OQ-07 已定案
 
@@ -299,7 +299,7 @@ cargo bench -- --output-format bencher
 
 | 變更集 | 狀態 | 摘要 |
 |--------|------|------|
-| `specs/roll-dsl/` | 已定案（T1–T7 完成 ✅） | .roll 語法定案、雙層執行（vhs 轉譯 + tapedeck 自動化）、XDG 路徑/設定、doctor 依賴檢查 |
+| `specs/roll-dsl/` | 已定案（T1–T8 完成 ✅） | .roll 語法定案、雙層執行（vhs 轉譯 + tapedeck 自動化）、XDG 路徑/設定、doctor 依賴檢查、SQLite 資產圖譜 |
 | `specs/media-export/` | 文件已建立（待審閱） | P1 靜態媒體壓製：optimize 雙 Pass + filmstrip 步驟圖；3 項 `[待討論]`（見 §6.1） |
 | §3 待確認決策 | **✅ 全部決策完成** | OQ-01（vhs 雙軌）、OQ-02（wtype+libei）、OQ-03（RecordingEngine trait）、OQ-04（完整 SQLite 資產圖譜）、OQ-05（probe+config+fallback 完整實作）、OQ-06（完整 TUI 導播台）、OQ-07（完整 MCP 工具）、OQ-08（vhs 全集 + 擴充指令）、OQ-09（v0.1 僅 Wayland，其餘社群貢獻） |
 | §6.1 功能支柱 | **P2/P3/P4 定案、P1 文件已建立** | Pillar 1（media-export 四件套完成，3 項細節 `[待討論]`）；P2（資產圖譜）OQ-04、Re-roll 待議；P3（MCP 閉環）OQ-07；P4（TUI 導播台）OQ-06 |

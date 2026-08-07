@@ -22,7 +22,7 @@
 - [ ] `Script` 新增 `engine: Option<Engine>`、`shell: Option<String>`（Terminal 別名）
 - [ ] `Set Engine/Output/FPS/Shell` 分派
 - [ ] 舊別名：`Title`/`Mode`/`Output`/`FPS`/`Terminal`/`Enter`
-- [ ] 單元測試：三份 examples 全部解析成功 + 欄位斷言 + vhs 全集指令透寫測試
+- [x] 單元測試：三份 examples 全部解析成功 + 欄位斷言 + vhs 全集指令透寫測試
 
 ## T2：dispatcher 雙後端（dispatcher.rs）
 
@@ -36,8 +36,8 @@
   - [ ] `Set Framerate`（非 FPS）、`MouseClick left/right/middle`、字母 Key → `Type "q"`
   - [ ] `Roll(s)` → `Sleep Ns`
 - [ ] `NativeEngine::record`：ExecBefore → detect_compositor → WaitWindow 輪詢 → TargetWindow+Padding → wf-recorder + Roll 計時 → Shortcut → ExecAfter → Optimize
-- [ ] 單元測試：VHS 轉譯正確性（無需實際呼叫 vhs）
-- [ ] 單元測試：`resolve_output_path`（相對/絕對/CLI 覆寫/XDG_CACHE_HOME 未設定）
+- [x] 單元測試：VHS 轉譯正確性（無需實際呼叫 vhs）
+- [x] 單元測試：`resolve_output_path`（相對/絕對/CLI 覆寫/XDG_CACHE_HOME 未設定）
 
 ## T3：compositor 容錯補強（wayland/compositor.rs）✅ 完成
 
@@ -95,18 +95,18 @@
 - [x] 完成後移除 probe.rs / config.rs 的 `#[allow(dead_code)]`（doctor 成為消費端）
 - [x] 完成後更新 project.md 原則 2 狀態與變更集索引
 
-## T8：SQLite 資產圖譜（src/db.rs）— 待實作
+## T8：SQLite 資產圖譜（src/db.rs）— 完成 ✅
 
 規格來源：OQ-04（project.md:132）+ Pillar 2（project.md:248）。MVP 範圍含 Asset Graph + 孤兒掃描；Re-roll 為 `[待討論]`（需新 change-set，非本次）。
 
 - [ ] `Cargo.toml` 新增 `rusqlite`（bundled，不新增 directories 依賴，XDG 沿用 std 解析）
-- [ ] 新增 `src/db.rs`：DB 初始化（`$XDG_STATE_HOME/tapedeck/tapedeck.db`，未設定 → `~/.local/state/tapedeck/`）
-- [ ] `assets` 表：路徑、hash（sha256）、來源 .roll、mtime、影格快取目錄索引
-- [ ] Markdown 引用追蹤：掃 `.md` 內 `assets/xxx.webm` 引用，建立 `.roll ➔ asset ➔ .md:行號` 三層關聯（Pillar 2）
-- [ ] `clean` 指令（cli.rs 目前 bail 未實作）：孤兒掃描 — 列出並清除無 .md 引用的資產（dry-run 模式先列不刪）
-- [ ] `link` 指令接上 DB 索引（media_link 目前獨立，需寫入 assets 表）
-- [ ] 單元測試：DB 建表 + 資產登錄/查詢 + 孤兒掃描（temp dir + 隔離 XDG_STATE_HOME）
-- [ ] 完成後更新 project.md Pillar 2 狀態與變更集索引
+- [x] 新增 `src/db.rs`：DB 初始化（`$XDG_STATE_HOME/tapedeck/tapedeck.db`，未設定 → `~/.local/state/tapedeck/`）
+- [x] `assets` 表：路徑、hash（sha256）、來源 .roll、mtime、影格快取目錄索引
+- [x] Markdown 引用追蹤：掃 `.md` 內 `assets/xxx.webm` 引用，建立 `.roll ➔ asset ➔ .md:行號` 三層關聯（Pillar 2）
+- [x] `clean` 指令（cli.rs 目前 bail 未實作）：孤兒掃描 — 列出並清除無 .md 引用的資產（dry-run 模式先列不刪）
+- [x] `link` 指令接上 DB 索引（media_link 目前獨立，需寫入 assets 表）
+- [x] 單元測試：DB 建表 + 資產登錄/查詢 + 孤兒掃描（temp dir + 隔離 XDG_STATE_HOME）
+- [x] 完成後更新 project.md Pillar 2 狀態與變更集索引
 
 ## 完成定義（Definition of Done）
 

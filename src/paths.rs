@@ -29,6 +29,11 @@ pub fn config_path() -> PathBuf {
     xdg_dir("XDG_CONFIG_HOME", ".config", "tapedeck/config.toml")
 }
 
+/// state 目錄（REQ-6.6）：SQLite DB 與錄製歷程
+pub fn state_dir() -> PathBuf {
+    xdg_dir("XDG_STATE_HOME", ".local/state", "tapedeck")
+}
+
 /// 輸出路徑解析（REQ-6.1）：CLI 覆寫/絕對路徑照原樣；相對 → XDG cache
 pub fn resolve_output_path(script_output: &str, cli_override: Option<&Path>) -> Result<PathBuf> {
     if let Some(p) = cli_override {
