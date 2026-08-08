@@ -136,9 +136,6 @@ pub(crate) fn to_webp_cmd(input: &Path, output: &Path, quality: u8) -> Vec<Strin
     ]
 }
 
-/// 同格式壓縮指令（T4b `--max-size`）：依輸出副檔名選降參數策略
-///
-/// - webm → `-c:v libvpx-vp9 -crf <q>`（q 越高越小；0-63）
 /// 依格式重編碼壓縮。
 ///
 /// - webm：crf（quality 遞增）
