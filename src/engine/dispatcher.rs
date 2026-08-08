@@ -5,6 +5,7 @@ use anyhow::{bail, Context, Result};
 use async_trait::async_trait;
 use std::fmt::Write as _;
 use std::path::{Path, PathBuf};
+use std::process::Command;
 use std::time::{Duration, Instant};
 use tokio::process::Command as TokioCommand;
 use tokio::time::sleep;
@@ -36,7 +37,9 @@ async fn run_exec_cmds(script: &Script, before: bool, fail_fast: bool) -> Result
         // （kitty/foot/obsidian），.status() 等待退出會永遠阻塞。
         // 改 spawn() 背景啟動：只確認命令能啟動，不等待退出；
         // 視窗就緒由後續 WaitWindow 指令負責。
-        let spawn = TokioCommand::new("sh")
+        // 用 std spawn 而非 tokio：tokio Command 預設 stdio 為 null，
+        // 繼承 stdio 與互動 shell 手動啟動的環境一致（D3 診斷發現）。
+        let spawn = Command::new("sh")
             .arg("-c")
             .arg(exec)
             .spawn()
