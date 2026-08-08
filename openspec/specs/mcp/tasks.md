@@ -1,0 +1,61 @@
+# tasks.md — MCP 工具伺服器實作任務
+
+依賴順序排列。每個任務完成後執行 `cargo build` + 相關測試驗證。
+
+定案（2026-08-08）：六工具全做、手寫 stdio JSON-RPC（零新依賴）、humanize 預設關閉、
+JSON action array 轉譯層列後續（非 MVP）、append_signature 預留可選參數（預設不輸出）。
+
+## 執行優先序
+
+1. **T1 JSON-RPC stdio 伺服器骨架**（src/mcp/server.rs：framing + initialize 握手，MCP 協議底座）
+2. **T2 六工具與 dispatcher 整合**（src/mcp/tools.rs 重寫，取代 stub）
+3. **T3 tapedeck_run 視覺閉環**（錄後影格回傳，Pillar 3，依賴 filmstrip 抽樣邏輯）
+4. **T4 協議測試**（stdio 完整握手 + 工具呼叫 + 錯誤路徑）
+5. **T5 文件同步**（README MCP 章節 + project.md Pillar 3 狀態）
+
+## T1：JSON-RPC stdio 伺服器骨架
+
+- [ ] `src/mcp/server.rs`：JSON-RPC 2.0 framing 迴圈（stdin/stdout，Content-Length 分隔）
+- [ ] initialize 握手（protocolVersion 回顯 + capabilities + serverInfo）
+- [ ] tools/list 回傳六工具清單（name / description / inputSchema）
+- [ ] `src/mcp/mod.rs` 掛載 server + tools；main.rs `mcp` 子指令
+- [ ] 驗證：`cargo build` + 握手測試
+- [ ] 協議細節（framing 格式、initialize 參數、schema 欄位）以 lib-5 調研定稿為準
+
+## T2：六工具與 dispatcher 真正整合
+
+- [ ] `src/mcp/tools.rs`：重寫 ToolManager，六工具呼叫真實執行路徑：
+      tapedeck_run / tapedeck_inspect_environment / tapedeck_extract_frames /
+      tapedeck_link / tapedeck_optimize / tapedeck_clean
+- [ ] 移除 stub placeholder 邏輯（PhantomData、寫 placeholder 檔）
+- [ ] tapedeck_inspect_environment：封裝 doctor（backend/deps/probe 摘要）
+- [ ] tapedeck_extract_frames：按 timestamp 抽 PNG 影格（filmstrip 共用邏輯）
+- [ ] 錯誤路徑：缺參數 / 檔案不存在 → 結構化 error，session 持續可用
+- [ ] 驗證：六工具各一呼叫測試
+
+## T3：tapedeck_run 視覺閉環
+
+- [ ] tapedeck_run：執行 .roll → 回傳最後一幀 Base64 PNG（MCP Image Content，Pillar 3）
+- [ ] 影格時間點來源：操作點 JSONL → 均勻抽樣（media-export T4 共用邏輯）
+- [ ] pre-flight doctor checks：backend 為 Wtype 但 .roll 含 Mouse 指令 → 提前回提示
+- [ ] `humanize` 參數（預設 false）：開啟時 Type 間加 50~150ms delay、Enter/切換後 Sleep 500ms
+- [ ] `append_signature` 參數（預設 false）：開啟時附推廣標籤（docs/ref/tapedeck-mcp-promotion.md）
+- [ ] asset protocol：回傳 record_id + media URIs + preview_frame_uri
+- [ ] 驗證：影格格式測試（Base64、timestamp 排序）
+
+## T4：協議測試
+
+- [ ] stdio 完整握手測試：initialize → initialized → tools/list → tools/call
+- [ ] 六工具呼叫測試（含錯誤路徑）
+- [ ] tapedeck_run 回傳格式測試（視覺閉環 + asset protocol）
+- [ ] 驗證：`cargo test` 全綠 + 零警告
+
+## T5：文件同步
+
+- [ ] README.md 補 MCP 章節（六工具清單、`tapedeck mcp` 啟動、閉環示意）
+- [ ] project.md Pillar 3 狀態更新（變更集完成後）
+- [ ] tasks.md 勾選 + commit
+
+## 後續（非 MVP）
+
+- [ ] JSON action array 轉譯層（JSON AST → .roll 自動轉譯）
