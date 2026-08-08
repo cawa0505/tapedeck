@@ -297,11 +297,17 @@ mod tests {
         assert_eq!(orphans[0].path, orphan);
 
         // dry-run 不刪除
-        assert!(!tracker.remove(&orphans[0], true).unwrap());
+        assert!(tracker
+            .remove(&orphans[0], true)
+            .unwrap()
+            .contains("[dry-run]"));
         assert!(orphan.exists());
 
         // 實際刪除
-        assert!(tracker.remove(&orphans[0], false).unwrap());
+        assert!(tracker
+            .remove(&orphans[0], false)
+            .unwrap()
+            .contains("已刪除"));
         assert!(!orphan.exists());
         assert_eq!(tracker.assets().unwrap().len(), 1);
     }

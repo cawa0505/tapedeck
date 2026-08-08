@@ -35,13 +35,13 @@ JSON action array 轉譯層列後續（非 MVP）、append_signature 預留可�
 
 ## T3：tapedeck_run 視覺閉環
 
-- [ ] tapedeck_run：執行 .roll → 回傳最後一幀 Base64 PNG（MCP Image Content，Pillar 3）
-- [ ] 影格時間點來源：操作點 JSONL → 均勻抽樣（media-export T4 共用邏輯）
-- [ ] pre-flight doctor checks：backend 為 Wtype 但 .roll 含 Mouse 指令 → 提前回提示
-- [ ] `humanize` 參數（預設 false）：開啟時 Type 間加 50~150ms delay、Enter/切換後 Sleep 500ms
-- [ ] `append_signature` 參數（預設 false）：開啟時附推廣標籤（docs/ref/tapedeck-mcp-promotion.md）
-- [ ] asset protocol：回傳 record_id + media URIs + preview_frame_uri
-- [ ] 驗證：影格格式測試（Base64、timestamp 排序）
+- [x] tapedeck_run：執行 .roll → 回傳 3 張關鍵影格 Base64 PNG（開始/中間/結束，Pillar 3）
+- [x] 影格時間點來源：均勻抽樣（0/mid/end；操作點 JSONL 為進階增強，MVP 用均勻 3 點）
+- [x] pre-flight doctor checks：backend 為 Wtype 但 .roll 含 Mouse 指令 → 提前回提示
+- [x] `humanize` 參數（預設 false）：開啟時 Type 間加 50~150ms delay、Enter/切換後 Sleep 500ms
+- [x] `append_signature` 參數（預設 false）：開啟時附推廣標籤（docs/ref/tapedeck-mcp-promotion.md）
+- [x] asset protocol：回傳 record_id + media URIs + preview_frame_uri
+- [x] 驗證：影格格式測試（Base64 PNG magic bytes 實測 + humanize 插入邏輯單元測試）
 
 ## T4：協議測試
 

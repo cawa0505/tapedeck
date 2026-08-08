@@ -98,9 +98,13 @@ impl RecordingEngine for VhsEngine {
             .with_context(|| format!("無法寫入暫存 .tape 檔案: {}", tape_path.display()))?;
 
         // 呼叫 vhs
+        // stdout → null：vhs 進度輸出（Creating/Host your GIF）在 MCP stdio 模式會污染
+        // JSON-RPC 協定串流（stdout 只能有 MCP 訊息）；stderr 保留給錯誤訊息。
         let executable = std::env::var("VHS_BIN").unwrap_or_else(|_| "vhs".to_owned());
         let status = TokioCommand::new(&executable)
             .arg(&tape_path)
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::inherit())
             .status()
             .await
             .with_context(|| format!("failed to start {executable}; install VHS or set VHS_BIN"))?;
@@ -295,6 +299,8 @@ impl RecordingEngine for NativeEngine {
             .arg(&geometry_arg)
             .arg("-f")
             .arg(&self.output)
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::null())
             .spawn()
             .with_context(|| {
                 format!("failed to start {executable}; install wf-recorder or set WF_RECORDER")
@@ -398,6 +404,8 @@ impl RecordingEngine for NativeEngine {
                 .arg("-c:v")
                 .arg(encoder)
                 .arg(&optimized)
+                .stdout(std::process::Stdio::null())
+                .stderr(std::process::Stdio::inherit())
                 .status()
                 .await
                 .with_context(|| "failed to start ffmpeg; install ffmpeg")?;

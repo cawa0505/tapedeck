@@ -33,7 +33,7 @@ pub fn filmstrip(opts: &FilmstripOptions) -> Result<()> {
     std::fs::create_dir_all(&frames_dir)?;
 
     // 2. 抽幀（vhs 來源已有 PNG，直接列表；其餘用 ffmpeg -ss）
-    let frames = extract_frames(opts, &points, &frames_dir)?;
+    let frames = extract_frames(&opts.input, &points, &frames_dir, opts.dry_run)?;
     if frames.is_empty() {
         bail!("沒有可用的影格（操作點 0 或抽幀失敗）");
     }
@@ -83,14 +83,20 @@ fn collect_points(opts: &FilmstripOptions) -> Result<Vec<u64>> {
 }
 
 /// 依時間點抽幀（ffmpeg -ss），回傳 PNG 路徑列表
-fn extract_frames(opts: &FilmstripOptions, points: &[u64], dir: &Path) -> Result<Vec<PathBuf>> {
+/// 依時間點抽 PNG 影格（MCP tapedeck_extract_frames 複用）
+pub(crate) fn extract_frames(
+    input: &Path,
+    points: &[u64],
+    dir: &Path,
+    dry_run: bool,
+) -> Result<Vec<PathBuf>> {
     if points.is_empty() {
         return Ok(vec![]);
     }
     let mut frames = Vec::with_capacity(points.len());
     for (i, ms) in points.iter().enumerate() {
         let out = dir.join(format!("f{:03}.png", i));
-        if opts.dry_run {
+        if dry_run {
             println!("ffmpeg -ss {}ms → {}", ms, out.display());
         } else {
             super::ffmpeg::run_ffmpeg_exec(&[
@@ -98,7 +104,7 @@ fn extract_frames(opts: &FilmstripOptions, points: &[u64], dir: &Path) -> Result
                 "-ss".to_string(),
                 format!("{:.3}", *ms as f64 / 1000.0),
                 "-i".to_string(),
-                opts.input.to_string_lossy().into_owned(),
+                input.to_string_lossy().into_owned(),
                 "-frames:v".to_string(),
                 "1".to_string(),
                 out.to_string_lossy().into_owned(),
