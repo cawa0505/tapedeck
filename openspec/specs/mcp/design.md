@@ -130,4 +130,14 @@ serde_json + stdin/stdout framing（Content-Length 分隔），零新依賴，�
 3. ✅ humanize：預設關閉（`humanize: false`，Agent 明確開啟才生效）
 4. ✅ JSON action array 轉譯層：MVP 不做（列後續）
 5. ✅ append_signature：預留可選參數（預設不輸出，Agent 明確指定才附上）
-6. ⏳ 協議細節（framing/握手/schema）：待 lib-5 調研定稿（T1 前）
+6. ✅ 協議細節（framing/握手/schema）：以官方 2025-06-18 spec 定稿（docs/ref/mcp-stdio-protocol.md），T1 前
+
+## 8. 未來升級：MCP 2.0 Stateless（預留章節）
+
+現階段設計為 stateful stdio session（單一進程、順序處理請求），但架構已與 Stateless 相容：
+
+- **狀態在 SQLite 不在記憶體**：tool 參數一律帶 record_id 或絕對路徑（asset protocol），Server 不假設「記得上次 run 產出」
+- **升級路徑**：MCP 2.0 發布後，把 stdio 請求處理器換成「無狀態轉向器（Stateless Router）」即可，核心工具邏輯不變
+- 完整討論存於 docs/ref/tapedeck-mcp-stateless-2.0.md（含 4 大優化點：SQLite 唯一真理來源 / Self-contained 參數 / CLI 當 Gateway / Response 攜帶可修復狀態）
+
+設計時程上的落實：現階段 asset protocol（record_id + URI 回傳）已符合 ③④，不需為 2.0 提前改動。
