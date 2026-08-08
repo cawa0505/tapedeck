@@ -139,8 +139,10 @@ pub(crate) fn to_webp_cmd(input: &Path, output: &Path, quality: u8) -> Vec<Strin
 /// 同格式壓縮指令（T4b `--max-size`）：依輸出副檔名選降參數策略
 ///
 /// - webm → `-c:v libvpx-vp9 -crf <q>`（q 越高越小；0-63）
-/// 依格式重編碼壓縮。webm 用 crf（quality 遞增）；gif 用 fps 遞減；
-/// webp 用 quality 遞減並以 mpdecimate 做多幀差異化（webp 動畫體積的主導因子）。
+/// 依格式重編碼壓縮：
+/// - webm：crf（quality 遞增）
+/// - gif：fps 遞減
+/// - webp：quality 遞減 + mpdecimate 多幀差異化（webp 動畫體積的主導因子）
 pub(crate) fn recompress_cmd(
     input: &Path,
     output: &Path,
