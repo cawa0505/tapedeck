@@ -262,6 +262,7 @@ tapedeck clean [--dry-run]
 - **影格抽樣回傳（Vision Feedback）**：錄完抽 3 張關鍵影格（PNG/Base64）回傳 Agent Context，Agent 以 Vision LLM 自行驗證（按鈕顏色/Layout/文字輸入）
 - **閉環**：錄製 → PNG 影格 → Vision 驗證，100% 自動化 E2E
 - **落點**：`src/mcp/tools.rs`（定案範圍內）；影格抽樣演算法細節待 Pillar 1 定案後同步
+- **進度**：✅ 已完成（T1-T4，commit efffaee）— 六工具全接線（`src/mcp/{server,tools}.rs` + `tests/mcp_stdio.rs` 協議測試 95 tests 綠）；T3 視覺閉環（3 幀 Base64 PNG + asset protocol）已實測；T5 文件同步完成
 
 ### Pillar 4：TUI 終端導播台（Sixel/Kitty 逐幀預覽）🎛️ — ✅ OQ-06 已定案
 

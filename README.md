@@ -85,6 +85,27 @@ Optimize AV1 encoder=av1_vaapi
 
 舊寫法相容：`Mode TUI|GUI`、`Title`、`Output`、`FPS`、`Terminal` 仍可解析。
 
+## 🤖 MCP 伺服器（AI Agent 整合）
+
+`tapedeck mcp` 以 stdio 啟動 MCP 伺服器（JSON-RPC 2.0，newline-delimited framing），供 AI Agent（如 opencode / Claude）直接呼叫：
+
+```bash
+tapedeck mcp
+```
+
+| 工具 | 說明 |
+|------|------|
+| `tapedeck_run` | 執行 .roll 腳本（可帶 `humanize`、`append_signature`、`max_size`） |
+| `tapedeck_inspect_environment` | 環境診斷（依賴 / 輸入後端 / 硬體能力） |
+| `tapedeck_extract_frames` | 按時間點抽取 PNG 影格 |
+| `tapedeck_link` | 媒體檔登錄資產庫（SQLite） |
+| `tapedeck_optimize` | ffmpeg 壓製（webm→gif / webp） |
+| `tapedeck_clean` | 清除資產庫孤兒 |
+
+**視覺反饋閉環**：`tapedeck_run` 錄製後回傳 3 張關鍵影格（開始/中間/結束，Base64 PNG）+ `record_id`/`preview_frame_uri`（asset protocol），Agent 以 Vision LLM 自行驗證結果 — 錄製 → PNG 影格 → 視覺驗證，全自動化 E2E。
+
+規格見 `openspec/specs/mcp/`（T1-T4 已完成，T5 文件同步中）。
+
 ## 📂 專案結構
 
 ```

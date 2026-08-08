@@ -52,9 +52,9 @@ JSON action array 轉譯層列後續（非 MVP）、append_signature 預留可�
 
 ## T5：文件同步
 
-- [ ] README.md 補 MCP 章節（六工具清單、`tapedeck mcp` 啟動、閉環示意）
-- [ ] project.md Pillar 3 狀態更新（變更集完成後）
-- [ ] tasks.md 勾選 + commit
+- [x] README.md 補 MCP 章節（六工具清單、`tapedeck mcp` 啟動、閉環示意）
+- [x] project.md Pillar 3 狀態更新（變更集完成後）
+- [x] tasks.md 勾選 + commit
 
 ## 後續（非 MVP）
 
