@@ -246,7 +246,7 @@ tapedeck clean [--dry-run]
 - 自動拼成橫向「操作步驟分解圖」（靜態圖文教學）
 
 - **對應**：OQ-03（MediaOptimizer 角色）、OQ-04（影格快取索引）
-- **現況**：✅ 文件已建立（`specs/media-export/` 四件套，T1~T5 任務分解）；3 個執行細節 `[待討論]`（操作點合併閾值、影格間距/標籤、Screenshot 編號對應）
+- **現況**：✅ 已完成（`specs/media-export/` 四件套，T1~T5 完成；3 個執行細節已在 T4 內化為預設值：操作點合併閾值 500ms、影格間距/pad 12px、Screenshot 編號 NN=序號）
 - **落點**：`src/media/`（ffmpeg.rs + optimize.rs + filmstrip.rs + timeline.rs）、ffmpeg 適配器、Cargo.toml（無新增依賴）
 
 ### Pillar 2：SQLite 資產圖譜（tapedeck db）🗄️ — ✅ OQ-04 已定案（Re-roll `[待討論]`）
@@ -303,6 +303,38 @@ cargo bench -- --output-format bencher
 | 變更集 | 狀態 | 摘要 |
 |--------|------|------|
 | `specs/roll-dsl/` | 已定案（T1–T8 完成 ✅） | .roll 語法定案、雙層執行（vhs 轉譯 + tapedeck 自動化）、XDG 路徑/設定、doctor 依賴檢查、SQLite 資產圖譜 |
-| `specs/media-export/` | 文件已建立（待審閱） | P1 靜態媒體壓製：optimize 雙 Pass + filmstrip 步驟圖；3 項 `[待討論]`（見 §6.1） |
+| `specs/media-export/` | 已完成（T1–T5 ✅） | P1 靜態媒體壓製：optimize 雙 Pass + filmstrip 步驟圖；DoD 4/5 通過，DoD 2/3 vhs+fallback 實測通過，DoD 1 語境 `[待討論]`（見 §6.1） |
 | §3 待確認決策 | **✅ 全部決策完成** | OQ-01（vhs 雙軌）、OQ-02（wtype+libei）、OQ-03（RecordingEngine trait）、OQ-04（完整 SQLite 資產圖譜）、OQ-05（probe+config+fallback 完整實作）、OQ-06（完整 TUI 導播台）、OQ-07（完整 MCP 工具）、OQ-08（vhs 全集 + 擴充指令）、OQ-09（v0.1 僅 Wayland，其餘社群貢獻） |
-| §6.1 功能支柱 | **P2/P3/P4 定案、P1 文件已建立** | Pillar 1（media-export 四件套完成，3 項細節 `[待討論]`）；P2（資產圖譜）OQ-04、Re-roll 待議；P3（MCP 閉環）OQ-07；P4（TUI 導播台）OQ-06 |
+| §6.1 功能支柱 | **P2/P3/P4 定案、P1 已完成** | Pillar 1（media-export 完成，DoD 1 語境 `[待討論]`）；P2（資產圖譜）OQ-04、Re-roll 待議；P3（MCP 閉環）OQ-07；P4（TUI 導播台）OQ-06 |
+
+## 12. 已排程任務（Scheduled）
+
+> 2026-08-08 盤點未完成項目後排定。依文件優先慣例，實作前需完成對應規格（已有 change-set 的直接執行；沒有的先建四件套）。
+
+### 12.1 Re-roll 動態批次重錄（Pillar 2 延伸）— 未定案
+
+- **動機**：`tapedeck reroll` 搜尋專案所有 .roll，於背景 Niri/Sway Workspace 全部重錄 — 大量 .roll 變更後的一次性批次重錄，輸出直接更新資產圖譜
+- **前置**：⚠️ OQ-04 未含此指令 → 需新 change-set 四件套（`openspec/specs/reroll/`）定案後才實作
+- **任務分解（草案，待 change-set 定稿）**：
+  - R-T1：`reroll` CLI 子指令 + 專案 .roll 遞迴搜尋
+  - R-T2：背景 Workspace 重錄循環（複用 NativeEngine + 靜默 workspace 既有能力）
+  - R-T3：產出同步資產圖譜（link 登錄 + clean 孤兒）
+  - R-T4：e2e 驗證（多 .roll 批次 → 圖譜一致性）
+
+### 12.2 CI 整合測試（原則 4 Mock Payload）— 未排實作
+
+- **動機**：上游外部工具（niri msg / swaymsg / wf-recorder / ffmpeg / vhs）改版可能改 CLI 參數或 JSON 結構，造成 tapedeck 靜默失敗。以 Mock Payload 樣板在 CI 第一時間抓出。
+- **前置**：無（測試基建，不影響功能）
+- **任務分解**：
+  - CI-T1：建立各版本 `niri msg --json windows` Mock Payload 樣板（含 Bounding Box 解析案例）
+  - CI-T2：compositor.rs 解析單元測試改吃 Mock 樣板（取代真實 niri 依賴）
+  - CI-T3：CI workflow 掛載（`cargo test` 全跑，上游樣板更新即紅燈）
+
+### 12.3 criterion 效能基準（驗證標準）— 未排實作
+
+- **動機**：驗證標準 §8「效能基準：每月執行 `cargo criterion` 比較編碼速度」— 目前無基準可跑
+- **前置**：無
+- **任務分解**：
+  - B-T1：`benches/` 建立 + `criterion` dev-dependency
+  - B-T2：編碼速度基準（ffmpeg 各編碼器 vs optimize 雙 Pass，樣本錄製）
+  - B-T3：每月執行流程文件化（與 §8 驗證標準對齊）
