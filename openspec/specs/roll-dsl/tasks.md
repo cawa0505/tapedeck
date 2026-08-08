@@ -11,31 +11,31 @@
 
 ## T1：parser AST 擴充（roll_parser.rs）
 
-- [ ] 新增 `Engine { Auto, Vhs, Native }`，取代/升級 `Mode`
-- [ ] `ScriptCommand` 擴充：
+- [x] 新增 `Engine { Auto, Vhs, Native }`，取代/升級 `Mode`
+- [x] `ScriptCommand` 擴充：
   - `Key(String, u32)` 合併 KeyDown/KeyUp（相容 `Key Down 3`）
   - `ExecBefore(String)`、`ExecAfter(String)`
   - `WaitWindow(String, u64)`（timeout 解析 `Ns`/`Nms`，預設 10000）
   - `TargetWindow(String)`、`WindowSize(u32,u32)`、`Padding(u32)`、`Roll(u64)`
   - `Shortcut(String)`、`Optimize(String, Vec<(String,String)>)`
-- [ ] vhs 指令全集透寫（REQ-7.1）：`Require`/`Ctrl`/`Alt+key`/`Escape`/`Space`/`Backspace`/`Delete`/`Insert`/`Down`/`Left`/`Right`/`Tab`/`Up`/`PageUp`/`PageDown`/`ScrollUp`/`ScrollDown`/`Hide`/`Show`/`Wait /regexp/`/`Source`/`Screenshot`/`Copy`/`Paste` 原樣解析為透寫指令
-- [ ] `Script` 新增 `engine: Option<Engine>`、`shell: Option<String>`（Terminal 別名）
-- [ ] `Set Engine/Output/FPS/Shell` 分派
-- [ ] 舊別名：`Title`/`Mode`/`Output`/`FPS`/`Terminal`/`Enter`
+- [x] vhs 指令全集透寫（REQ-7.1）：`Require`/`Ctrl`/`Alt+key`/`Escape`/`Space`/`Backspace`/`Delete`/`Insert`/`Down`/`Left`/`Right`/`Tab`/`Up`/`PageUp`/`PageDown`/`ScrollUp`/`ScrollDown`/`Hide`/`Show`/`Wait /regexp/`/`Source`/`Screenshot`/`Copy`/`Paste` 原樣解析為透寫指令
+- [x] `Script` 新增 `engine: Option<Engine>`、`shell: Option<String>`（Terminal 別名）
+- [x] `Set Engine/Output/FPS/Shell` 分派
+- [x] 舊別名：`Title`/`Mode`/`Output`/`FPS`/`Terminal`/`Enter`
 - [x] 單元測試：三份 examples 全部解析成功 + 欄位斷言 + vhs 全集指令透寫測試
 
 ## T2：dispatcher 雙後端（dispatcher.rs）
 
-- [ ] `RecordingEngine` trait（OQ-03 定案）：`prepare/record/cleanup` lifecycle
-- [ ] `VhsEngine` / `NativeEngine` 實作（現有 run_vhs/run_native 遷移為 trait 方法，行為不變）
-- [ ] `run(args)`：dry-run 輸出引擎/輸出/摘要 → `resolve_engine()`（Auto→偵測）→ trait 分派
-- [ ] `resolve_output_path(script_output, cli_override)`（REQ-6）：相對→XDG cache；絕對/CLI 覆寫→照原樣
-- [ ] 錄製前 `create_dir_all` 目標目錄
-- [ ] dry-run 與實際執行顯示解析後絕對輸出路徑
-- [ ] `VhsEngine::record`：ExecBefore → VHS DSL 轉譯 → 暫存 .tape → vhs 執行 → ExecAfter
+- [x] `RecordingEngine` trait（OQ-03 定案）：`prepare/record/cleanup` lifecycle
+- [x] `VhsEngine` / `NativeEngine` 實作（現有 run_vhs/run_native 遷移為 trait 方法，行為不變）
+- [x] `run(args)`：dry-run 輸出引擎/輸出/摘要 → `resolve_engine()`（Auto→偵測）→ trait 分派
+- [x] `resolve_output_path(script_output, cli_override)`（REQ-6）：相對→XDG cache；絕對/CLI 覆寫→照原樣
+- [x] 錄製前 `create_dir_all` 目標目錄
+- [x] dry-run 與實際執行顯示解析後絕對輸出路徑
+- [x] `VhsEngine::record`：ExecBefore → VHS DSL 轉譯 → 暫存 .tape → vhs 執行 → ExecAfter
   - [ ] `Set Framerate`（非 FPS）、`MouseClick left/right/middle`、字母 Key → `Type "q"`
   - [ ] `Roll(s)` → `Sleep Ns`
-- [ ] `NativeEngine::record`：ExecBefore → detect_compositor → WaitWindow 輪詢 → TargetWindow+Padding → wf-recorder + Roll 計時 → Shortcut → ExecAfter → Optimize
+- [x] `NativeEngine::record`：ExecBefore → detect_compositor → WaitWindow 輪詢 → TargetWindow+Padding → wf-recorder + Roll 計時 → Shortcut → ExecAfter → Optimize
 - [x] 單元測試：VHS 轉譯正確性（無需實際呼叫 vhs）
 - [x] 單元測試：`resolve_output_path`（相對/絕對/CLI 覆寫/XDG_CACHE_HOME 未設定）
 
@@ -50,7 +50,7 @@
 
 - [x] `--fps FPS`：覆寫腳本 fps（優先序 CLI > 腳本 > config），轉譯層輸出 `Set Framerate <n>`
 - [x] `--gif|--webp`：覆寫輸出路徑副檔名（vhs 以 Output 副檔名決定格式，見 docs/ref/vhs-tape-format.md:9）
-- [ ] `--max-size MB`：[待討論] vhs 無 MaxSize 指令（已查 docs/ref/vhs-tape-format.md 無對應）— 選項：a) 僅提示無法直接套用 b) 由 optimize 後處理壓縮（屬 P1 media-export 範圍）c) 其他。實作前需定案
+- [x] `--max-size MB`：[待討論] vhs 無 MaxSize 指令（已查 docs/ref/vhs-tape-format.md 無對應）— 選項：a) 僅提示無法直接套用 b) 由 optimize 後處理壓縮（屬 P1 media-export 範圍）c) 其他。實作前需定案
 - [x] 單元測試：flag 覆寫優先序（CLI > 腳本 > config defaults）— fps ×3 + 格式 ×3
 
 ## T4：驗證（手動）✅ 完成
@@ -99,7 +99,7 @@
 
 規格來源：OQ-04（project.md:132）+ Pillar 2（project.md:248）。MVP 範圍含 Asset Graph + 孤兒掃描；Re-roll 為 `[待討論]`（需新 change-set，非本次）。
 
-- [ ] `Cargo.toml` 新增 `rusqlite`（bundled，不新增 directories 依賴，XDG 沿用 std 解析）
+- [x] `Cargo.toml` 新增 `rusqlite`（bundled，不新增 directories 依賴，XDG 沿用 std 解析）
 - [x] 新增 `src/db.rs`：DB 初始化（`$XDG_STATE_HOME/tapedeck/tapedeck.db`，未設定 → `~/.local/state/tapedeck/`）
 - [x] `assets` 表：路徑、hash（sha256）、來源 .roll、mtime、影格快取目錄索引
 - [x] Markdown 引用追蹤：掃 `.md` 內 `assets/xxx.webm` 引用，建立 `.roll ➔ asset ➔ .md:行號` 三層關聯（Pillar 2）
@@ -107,6 +107,17 @@
 - [x] `link` 指令接上 DB 索引（media_link 目前獨立，需寫入 assets 表）
 - [x] 單元測試：DB 建表 + 資產登錄/查詢 + 孤兒掃描（temp dir + 隔離 XDG_STATE_HOME）
 - [x] 完成後更新 project.md Pillar 2 狀態與變更集索引
+
+## T9 ✅ 完成：OQ-02 輸入注入（src/engine/input.rs）
+
+規格來源：OQ-02（project.md:119）+ design.md §4.2 補強。範圍（用戶定案）：**wtype 鍵盤完整實作 + libei 滑鼠能力偵測**。
+
+- [x] 新增 `src/engine/input.rs`：`InputAdapter` trait（key_type/key_press/shortcut/mouse_click/mouse_move），wtype 鍵盤實作 + libei 滑鼠偵測
+- [x] wtype 鍵盤 CLI 適配（符合 #2889 外部工具 CLI 適配慣例）：Type 文字、Key 具名按鍵 ×N、Shortcut 組合鍵
+- [x] libei 滑鼠能力偵測：可用才注入 Click/MouseMove；不可用 → 警告略過（同現有 Shortcut 模式）
+- [x] NativeEngine::record 接線：Type/Key/MouseMove/Click 由警告略過改為實際注入；Sleep 時序
+- [x] 單元測試：wtype CLI 參數組建純函式（文字轉義/組合鍵/按鍵重複）、libei 偵測邏輯
+- [x] 完成後同步 project.md OQ-02 狀態（決策 ✅ → 實作完成 ✅）
 
 ## 完成定義（Definition of Done）
 

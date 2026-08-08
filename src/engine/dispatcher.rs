@@ -1,4 +1,5 @@
 use crate::cli::RunArgs;
+use crate::engine::input::InputAdapter;
 use crate::engine::roll_parser::{ClickType, Engine, Script, ScriptCommand};
 use crate::paths::resolve_output_path;
 use anyhow::{bail, Context, Result};
@@ -281,14 +282,14 @@ impl RecordingEngine for NativeEngine {
             eprintln!("警告：WindowSize {w}x{h} 僅記錄，不調整視窗大小（OQ-02 待實作）");
         }
 
-        // Shortcut：OQ-02 輸入注入未實作 → 警告略過
-        if let Some(ScriptCommand::Shortcut(_)) =
-            find_cmd(script, |c| matches!(c, ScriptCommand::Shortcut(_)))
+        // Shortcut：OQ-02 已接線 → 錄製循環中執行；此處僅檢查 WindowSize（resize 非輸入注入）
+        if let Some(ScriptCommand::WindowSize(w, h)) =
+            find_cmd(script, |c| matches!(c, ScriptCommand::WindowSize(..)))
         {
-            eprintln!("警告：Shortcut 未實作（OQ-02 wtype/libei 輸入注入待接線）");
+            eprintln!("警告：WindowSize {w}x{h} 僅記錄，不調整視窗大小（OQ-02 待實作 resize）");
         }
 
-        // wf-recorder + Roll 計時
+        // wf-recorder + 操作序列（OQ-02 輸入注入）
         let executable = std::env::var("WF_RECORDER").unwrap_or_else(|_| "wf-recorder".to_owned());
         let mut child = TokioCommand::new(&executable)
             .arg("-g")
@@ -301,17 +302,63 @@ impl RecordingEngine for NativeEngine {
             })?;
 
         // 操作時間點日誌（T3）：腳本時序推算，寫入 state_dir/<stem>.timeline.jsonl
-        // （OQ-02 輸入注入未接線前以推算為準；filmstrip 以 ms 抽幀）
+        // （filmstrip 以 ms 抽幀；實際執行時序與推算可能略有出入）
         write_timeline(script, &self.output)?;
 
-        let status = match find_cmd(script, |c| matches!(c, ScriptCommand::Roll(_))) {
-            Some(ScriptCommand::Roll(secs)) => {
-                sleep(Duration::from_secs(*secs)).await;
-                let _ = child.kill().await;
-                child.wait().await
+        // 錄製循環：依序執行操作指令（wtype 鍵盤；libei 滑鼠能力偵測）
+        let input = crate::engine::input::WtypeAdapter::new();
+        let roll_dur = match find_cmd(script, |c| matches!(c, ScriptCommand::Roll(_))) {
+            Some(ScriptCommand::Roll(secs)) => Some(Duration::from_secs(*secs)),
+            _ => None,
+        };
+        let started = Instant::now();
+        for cmd in &script.commands {
+            match cmd {
+                ScriptCommand::Type(t) => input
+                    .key_type(t)
+                    .with_context(|| "Type 輸入失敗；可用 `tapedeck doctor` 檢查 wtype 是否安裝")?,
+                ScriptCommand::Key(name, n) => input
+                    .key_press(name, *n)
+                    .with_context(|| "Key 按鍵失敗；可用 `tapedeck doctor` 檢查 wtype 是否安裝")?,
+                ScriptCommand::Shortcut(combo) => input
+                    .shortcut(combo)
+                    .with_context(|| "Shortcut 失敗；可用 `tapedeck doctor` 檢查 wtype 是否安裝")?,
+                // 滑鼠：libei 無注入器 → 警告略過（能力偵測設計）
+                ScriptCommand::MouseMove(x, y) => {
+                    if let Err(e) = input.mouse_move(*x, *y) {
+                        eprintln!("警告：MouseMove 略過（{e}）");
+                    }
+                }
+                ScriptCommand::Click(button) => {
+                    if let Err(e) = input.mouse_click(*button) {
+                        eprintln!("警告：Click 略過（{e}）");
+                    }
+                }
+                ScriptCommand::Sleep(ms) => {
+                    if let Some(roll) = roll_dur {
+                        let remain = roll.saturating_sub(started.elapsed());
+                        if remain.is_zero() {
+                            break; // Roll 到期，強制結束
+                        }
+                        sleep(Duration::from_millis((*ms).min(remain.as_millis() as u64))).await;
+                    } else {
+                        sleep(Duration::from_millis(*ms)).await;
+                    }
+                }
+                _ => {} // 其餘指令（ExecBefore/After、WaitWindow 等）已在別處處理
             }
-            _ => child.wait().await,
-        }?;
+        }
+        // 尾段：Roll 剩餘時間（若有），否則操作後短尾段
+        if let Some(roll) = roll_dur {
+            let remain = roll.saturating_sub(started.elapsed());
+            if !remain.is_zero() {
+                sleep(remain).await;
+            }
+        } else {
+            sleep(Duration::from_millis(500)).await;
+        }
+        let _ = child.kill().await;
+        let status = child.wait().await?;
 
         if !status.success() {
             bail!("wf-recorder exited with {status}");
