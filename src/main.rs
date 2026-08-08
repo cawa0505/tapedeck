@@ -47,6 +47,27 @@ async fn run() -> Result<()> {
             };
             media::optimize::optimize(&opts)?;
         }
+        Commands::Filmstrip(args) => {
+            let output = match &args.output {
+                Some(o) => Ok(o.clone()),
+                None => {
+                    let stem = args
+                        .input
+                        .file_stem()
+                        .map(|s| s.to_string_lossy().into_owned())
+                        .unwrap_or_else(|| "recording".into());
+                    crate::paths::resolve_output_path(&format!("{}-filmstrip.png", stem), None)
+                }
+            }?;
+            let opts = media::filmstrip::FilmstripOptions {
+                input: args.input,
+                roll: args.roll,
+                count: args.count,
+                output,
+                dry_run: args.dry_run,
+            };
+            media::filmstrip::filmstrip(&opts)?;
+        }
         Commands::Clean(args) => {
             let tracker = db::AssetTracker::open()?;
             let orphans = tracker.orphans(&std::env::current_dir()?)?;

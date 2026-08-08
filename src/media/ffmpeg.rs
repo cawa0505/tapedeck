@@ -130,6 +130,26 @@ pub(crate) fn to_webp_cmd(input: &Path, output: &Path, quality: u8) -> Vec<Strin
 }
 
 /// 執行 ffmpeg，失敗回傳錯誤（含 stderr 摘要）
+/// 執行 ffmpeg（filmstrip/hstack 等步驟共用）
+pub fn run_ffmpeg_exec(args: &[String]) -> Result<()> {
+    run_ffmpeg_strict(args, "ffmpeg")
+}
+
+/// 探測影片時長（ms）。`ffmpeg -i` 的 stderr `Duration:` 行解析；失敗回 None（lenient）。
+pub fn probe_duration_ms(input: &Path) -> Option<u64> {
+    let out = Command::new("ffmpeg").arg("-i").arg(input).output().ok()?;
+    let stderr = String::from_utf8_lossy(&out.stderr);
+    let line = stderr.lines().find(|l| l.contains("Duration:"))?;
+    // "  Duration: 00:00:04.83, start: ..." → 取 HH:MM:SS.xx
+    let rest = line.split("Duration:").nth(1)?.trim();
+    let hms = rest.split(',').next()?.trim();
+    let mut parts = hms.split(':');
+    let h: f64 = parts.next()?.trim().parse().ok()?;
+    let m: f64 = parts.next()?.trim().parse().ok()?;
+    let s: f64 = parts.next()?.trim().parse().ok()?;
+    Some(((h * 3600.0 + m * 60.0 + s) * 1000.0) as u64)
+}
+
 fn run_ffmpeg_strict(args: &[String], step: &str) -> Result<()> {
     let out = Command::new("ffmpeg")
         .args(args)

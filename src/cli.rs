@@ -16,6 +16,8 @@ pub enum Commands {
     Link(LinkArgs),
     /// 優化媒體檔案
     Optimize(OptimizeArgs),
+    /// 產生橫向步驟圖（filmstrip）
+    Filmstrip(FilmstripArgs),
     /// 清理孤兒資產
     Clean(CleanArgs),
     /// 檢查系統依賴與硬體能力
@@ -67,6 +69,20 @@ pub struct OptimizeArgs {
 
 #[derive(Args)]
 pub struct CleanArgs {
+    #[arg(long)]
+    pub dry_run: bool,
+}
+
+#[derive(Args)]
+pub struct FilmstripArgs {
+    #[arg(required = true)]
+    pub input: PathBuf,
+    #[arg(long)]
+    pub roll: Option<PathBuf>, // .roll 腳本（時間點來源）
+    #[arg(long, default_value_t = 8)]
+    pub count: usize, // 最多取幾個操作點
+    #[arg(short, long)]
+    pub output: Option<PathBuf>, // 預設：<input stem>-filmstrip.png（XDG）
     #[arg(long)]
     pub dry_run: bool,
 }

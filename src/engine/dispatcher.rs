@@ -131,9 +131,26 @@ fn script_to_tape_content(script: &Script, output: &Path) -> Result<String> {
         writeln!(s, "Set Shell \"{}\"", term)?;
     }
 
+    // filmstrip 來源 1：操作點後注入 Screenshot（絕對路徑，落 output 旁 frames/ 目錄）
+    let shots_dir = output
+        .parent()
+        .map(|p| p.join("frames"))
+        .unwrap_or_else(|| std::path::PathBuf::from("frames"));
+    let mut shot_n = 0u32;
+    let shot_line = |n: u32| {
+        format!(
+            "Screenshot \"{}\"",
+            shots_dir.join(format!("{:03}.png", n)).display()
+        )
+    };
+
     for cmd in &script.commands {
         match cmd {
-            ScriptCommand::Type(text) => writeln!(s, "Type \"{}\"", text)?,
+            ScriptCommand::Type(text) => {
+                writeln!(s, "Type \"{}\"", text)?;
+                shot_n += 1;
+                writeln!(s, "{}", shot_line(shot_n))?;
+            }
             ScriptCommand::Key(name, count) => {
                 let is_single_char = name.chars().count() == 1
                     && !matches!(
@@ -164,6 +181,8 @@ fn script_to_tape_content(script: &Script, output: &Path) -> Result<String> {
                 } else {
                     writeln!(s, "{}", name)?;
                 }
+                shot_n += 1;
+                writeln!(s, "{}", shot_line(shot_n))?;
             }
             ScriptCommand::Sleep(ms) => writeln!(s, "Sleep {}ms", ms)?,
             ScriptCommand::MouseMove(x, y) => writeln!(s, "MouseMove {} {}", x, y)?,
@@ -174,6 +193,8 @@ fn script_to_tape_content(script: &Script, output: &Path) -> Result<String> {
                     ClickType::Middle => "middle",
                 };
                 writeln!(s, "MouseClick {}", btn)?;
+                shot_n += 1;
+                writeln!(s, "{}", shot_line(shot_n))?;
             }
             ScriptCommand::Roll(secs) => writeln!(s, "Sleep {}s", secs)?,
             // vhs 指令全集透寫（REQ-7.1）：原樣轉譯
