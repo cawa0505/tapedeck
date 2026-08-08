@@ -33,8 +33,8 @@
 - [x] 錄製前 `create_dir_all` 目標目錄
 - [x] dry-run 與實際執行顯示解析後絕對輸出路徑
 - [x] `VhsEngine::record`：ExecBefore → VHS DSL 轉譯 → 暫存 .tape → vhs 執行 → ExecAfter
-  - [ ] `Set Framerate`（非 FPS）、`MouseClick left/right/middle`、字母 Key → `Type "q"`
-  - [ ] `Roll(s)` → `Sleep Ns`
+  - [x] `Set Framerate`（非 FPS）、`MouseClick left/right/middle`、字母 Key → `Type "q"`
+  - [x] `Roll(s)` → `Sleep Ns`
 - [x] `NativeEngine::record`：ExecBefore → detect_compositor → WaitWindow 輪詢 → TargetWindow+Padding → wf-recorder + Roll 計時 → Shortcut → ExecAfter → Optimize
 - [x] 單元測試：VHS 轉譯正確性（無需實際呼叫 vhs）
 - [x] 單元測試：`resolve_output_path`（相對/絕對/CLI 覆寫/XDG_CACHE_HOME 未設定）

@@ -92,6 +92,13 @@ impl RecordingEngine for VhsEngine {
     async fn record(&self, script: &Script) -> Result<()> {
         let tape_content = script_to_tape_content(script, &self.output)?;
 
+        // vhs 的 Screenshot 指令不自動建目錄 — 預先建立 shots_dir（filmstrip 來源 1）
+        if let Some(parent) = self.output.parent() {
+            std::fs::create_dir_all(parent.join("frames")).with_context(|| {
+                format!("無法建立 frames 目錄: {}", parent.join("frames").display())
+            })?;
+        }
+
         // 建立暫存 .tape 檔案
         let tape_path = std::env::temp_dir().join(format!("tapedeck-{}.tape", std::process::id()));
         std::fs::write(&tape_path, tape_content)
