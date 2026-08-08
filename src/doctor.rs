@@ -37,31 +37,37 @@ const DEPS: &[Dep] = &[
 
 /// 執行 tapedeck doctor：檢查依賴 + 硬體探針寫回 config
 pub fn run_doctor() {
-    println!("🩺 Checking system dependencies for tapedeck.\n");
+    println!("{}", doctor_report());
+}
 
+/// 產生 doctor 檢查報告字串（MCP tapedeck_inspect_environment 複用）
+pub fn doctor_report() -> String {
+    let mut out = String::from("🩺 Checking system dependencies for tapedeck.\n");
     let mut all_ok = true;
     for dep in DEPS {
         if is_available(dep) {
-            println!("✅ [OK] {} found.", dep.name);
+            out.push_str(&format!("✅ [OK] {} found.\n", dep.name));
         } else {
-            println!("❌ [MISSING] {} not found.", dep.name);
-            println!("   └─ Hint: {}", dep.hint);
+            out.push_str(&format!("❌ [MISSING] {} not found.\n", dep.name));
+            out.push_str(&format!("   └─ Hint: {}\n", dep.hint));
             all_ok = false;
         }
     }
 
     // 輸入注入後端診斷（OQ-02 / T10：uinput 優先，wtype 回退）
-    if !check_input_provider() {
+    let (input_report, input_ok) = check_input_provider();
+    out.push_str(&input_report);
+    if !input_ok {
         all_ok = false;
     }
 
     // 硬體探針寫回 [system.detected]（probe 為 doctor 的 CLI 消費端）
     let caps = probe::HardwareCapabilities::probe_system();
-    println!(
-        "\n🔍 Hardware: dri={} encoders={}",
+    out.push_str(&format!(
+        "\n🔍 Hardware: dri={} encoders={}\n",
         caps.dri,
         caps.encoders.len()
-    );
+    ));
     let detected = config::Detected {
         encoders: caps.encoders.clone(),
         vaapi: caps.vaapi,
@@ -71,15 +77,17 @@ pub fn run_doctor() {
         detected: Some(detected),
     };
     if let Err(e) = config::save(&system) {
-        println!("   └─ ⚠️ 寫回 [system.detected] 失敗: {e}");
+        out.push_str(&format!("   └─ ⚠️ 寫回 [system.detected] 失敗: {e}\n"));
         all_ok = false;
     }
 
+    out.push('\n');
     if all_ok {
-        println!("\n✨ All systems go! You're ready to tape.");
+        out.push_str("✨ All systems go! You're ready to tape.\n");
     } else {
-        println!("\n⚠️ Some dependencies are missing. Install them to proceed.");
+        out.push_str("⚠️ Some dependencies are missing. Install them to proceed.\n");
     }
+    out
 }
 
 /// 實際執行 `<tool> <version_flag>`，靜默執行，只關心存不存在
@@ -96,44 +104,44 @@ fn is_available(dep: &Dep) -> bool {
 ///
 /// 檢查三項：/dev/uinput 存在、uinput kernel module 已載入、目前使用者
 /// 對 /dev/uinput 有寫權限。權限不足時提示修正方式（usermod / udev rule）。
-fn check_input_provider() -> bool {
-    println!("\n🎮 Input Provider Diagnostic:");
+fn check_input_provider() -> (String, bool) {
+    let mut out = String::from("\n🎮 Input Provider Diagnostic:\n");
 
     let dev_ok = Path::new("/dev/uinput").exists();
-    println!(
-        "{} Device: /dev/uinput {}",
+    out.push_str(&format!(
+        "{} Device: /dev/uinput {}\n",
         ok_or_missing(dev_ok),
         if dev_ok { "exists" } else { "missing" }
-    );
+    ));
 
     let module_ok = uinput_module_loaded();
-    println!(
-        "{} Kernel Module: uinput {}",
+    out.push_str(&format!(
+        "{} Kernel Module: uinput {}\n",
         ok_or_missing(module_ok),
         if module_ok { "loaded" } else { "not loaded" }
-    );
+    ));
 
     let perm_ok = std::fs::OpenOptions::new()
         .write(true)
         .open("/dev/uinput")
         .is_ok();
-    println!(
-        "{} Permission: Current user {} write access to /dev/uinput",
+    out.push_str(&format!(
+        "{} Permission: Current user {} write access to /dev/uinput\n",
         ok_or_missing(perm_ok),
         if perm_ok { "has" } else { "has no" }
-    );
+    ));
 
     let backend = InputBackend::detect();
-    println!("👉 Active Input Backend: {backend}");
+    out.push_str(&format!("👉 Active Input Backend: {backend}\n"));
 
     if perm_ok {
-        true
+        (out, true)
     } else {
-        println!("💡 To unlock full mouse/keyboard automation, fix permission:");
-        println!("   Option A: sudo usermod -aG input $USER (and relogin)");
-        println!("   Option B: Add udev rule /etc/udev/rules.d/99-input.rules");
-        println!("             (KERNEL==\"uinput\", MODE=\"0660\", GROUP=\"input\")");
-        false
+        out.push_str("💡 To unlock full mouse/keyboard automation, fix permission:\n");
+        out.push_str("   Option A: sudo usermod -aG input $USER (and relogin)\n");
+        out.push_str("   Option B: Add udev rule /etc/udev/rules.d/99-input.rules\n");
+        out.push_str("             (KERNEL==\"uinput\", MODE=\"0660\", GROUP=\"input\")\n");
+        (out, false)
     }
 }
 

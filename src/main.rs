@@ -76,7 +76,7 @@ async fn run() -> Result<()> {
                 println!("無孤兒資產");
             } else {
                 for asset in &orphans {
-                    tracker.remove(asset, args.dry_run)?;
+                    println!("{}", tracker.remove(asset, args.dry_run)?);
                 }
             }
         }

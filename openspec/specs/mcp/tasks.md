@@ -17,21 +17,21 @@ JSON action array 轉譯層列後續（非 MVP）、append_signature 預留可�
 
 - [x] `src/mcp/server.rs`：JSON-RPC 2.0 framing 迴圈（stdin/stdout，**newline-delimited JSON**，每行一則訊息）
 - [x] initialize 握手（protocolVersion 回顯 + capabilities + serverInfo）→ 等 notifications/initialized
-- [ ] tools/list 回傳六工具清單（name / description / inputSchema）
+- [x] tools/list 回傳六工具清單（name / description / inputSchema）
 - [x] `src/mcp/mod.rs` 掛載 server + tools；main.rs `mcp` 子指令
 - [x] 驗證：`cargo build` + 握手測試
 - [x] 協議細節以 docs/ref/mcp-stdio-protocol.md（2025-06-18 官方 spec）為準
 
 ## T2：六工具與 dispatcher 真正整合
 
-- [ ] `src/mcp/tools.rs`：重寫 ToolManager，六工具呼叫真實執行路徑：
+- [x] `src/mcp/tools.rs`：重寫 ToolManager，六工具呼叫真實執行路徑：
       tapedeck_run / tapedeck_inspect_environment / tapedeck_extract_frames /
       tapedeck_link / tapedeck_optimize / tapedeck_clean
-- [ ] 移除 stub placeholder 邏輯（PhantomData、寫 placeholder 檔）
-- [ ] tapedeck_inspect_environment：封裝 doctor（backend/deps/probe 摘要）
-- [ ] tapedeck_extract_frames：按 timestamp 抽 PNG 影格（filmstrip 共用邏輯）
-- [ ] 錯誤路徑：缺參數 / 檔案不存在 → 結構化 error，session 持續可用
-- [ ] 驗證：六工具各一呼叫測試
+- [x] 移除 stub placeholder 邏輯（PhantomData、寫 placeholder 檔）
+- [x] tapedeck_inspect_environment：封裝 doctor（backend/deps/probe 摘要）
+- [x] tapedeck_extract_frames：按 timestamp 抽 PNG 影格（filmstrip 共用邏輯）
+- [x] 錯誤路徑：缺參數 / 檔案不存在 → 結構化 error，session 持續可用
+- [x] 驗證：六工具各一呼叫測試
 
 ## T3：tapedeck_run 視覺閉環
 

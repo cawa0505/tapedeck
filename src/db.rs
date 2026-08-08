@@ -149,12 +149,12 @@ impl AssetTracker {
             .collect())
     }
 
-    /// 刪除資產（檔案 + DB row）；`dry_run=true` 只回報不動手
-    pub fn remove(&self, asset: &Asset, dry_run: bool) -> Result<bool> {
+    /// 刪除資產（檔案 + DB row）；`dry_run=true` 只回報不動手。
+    /// 回傳動作描述字串（library 層零 stdout，由呼叫方決定輸出）。
+    pub fn remove(&self, asset: &Asset, dry_run: bool) -> Result<String> {
         let path = &asset.path;
         if dry_run {
-            println!("[dry-run] 孤兒: {}", path.display());
-            return Ok(false);
+            return Ok(format!("[dry-run] 孤兒: {}", path.display()));
         }
         match std::fs::remove_file(path) {
             Ok(()) => {
@@ -162,8 +162,7 @@ impl AssetTracker {
                     "DELETE FROM assets WHERE path = ?1",
                     params![path.to_string_lossy()],
                 )?;
-                println!("已刪除孤兒: {}", path.display());
-                Ok(true)
+                Ok(format!("已刪除孤兒: {}", path.display()))
             }
             Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
                 // 檔案已不存在：僅清 DB row
@@ -171,8 +170,7 @@ impl AssetTracker {
                     "DELETE FROM assets WHERE path = ?1",
                     params![path.to_string_lossy()],
                 )?;
-                println!("清理失效 DB row: {}", path.display());
-                Ok(true)
+                Ok(format!("清理失效 DB row: {}", path.display()))
             }
             Err(e) => Err(e).context(format!("刪除失敗: {}", path.display())),
         }
