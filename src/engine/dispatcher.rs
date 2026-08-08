@@ -288,7 +288,9 @@ impl RecordingEngine for NativeEngine {
                 Some(ScriptCommand::Padding(p)) => *p,
                 _ => 0,
             };
-            geo.to_wf_recorder_arg(padding)
+            // 視窗座標 → 輸出座標（niri scrolling 平面 ≠ 輸出；sway no-op）
+            let out_geo = compositor.window_on_output(&geo)?;
+            out_geo.to_wf_recorder_arg(padding)
         };
 
         // WindowSize：目前僅記錄，不調整視窗（OQ-02 待實作 resize）

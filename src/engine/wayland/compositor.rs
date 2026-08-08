@@ -1,5 +1,6 @@
 use anyhow::{anyhow, Result};
 use serde::Deserialize;
+use std::collections::HashMap;
 use std::process::Command;
 
 /// 視�窗�幾何座標 (Bounding Box)
@@ -26,6 +27,9 @@ impl WindowGeometry {
 pub trait Compositor {
     /// 根據 title 或 app_id �尋�找指定視�窗的�幾何座標
     fn find_window_geometry(&self, target: &str) -> Result<WindowGeometry>;
+    /// 將視窗座標轉為 wf-recorder 可用的輸出座標（並 clip 到輸出交集）。
+    /// niri 的 scrolling 佈局座標 ≠ 輸出座標；sway 無此問題（no-op）。
+    fn window_on_output(&self, win: &WindowGeometry) -> Result<WindowGeometry>;
     /// 將指定視�窗移至�靜默背景 Workspace
     #[allow(dead_code)] // OQ-02 GUI 工作接線後使用
     fn move_to_workspace(&self, target: &str, workspace_name: &str) -> Result<()>;
@@ -43,6 +47,20 @@ struct NiriWindow {
     title: Option<String>,
     app_id: Option<String>,
     layout: NiriLayout,
+}
+
+/// niri msg --json outputs 的單一輸出（logical = scrolling 平面座標）
+#[derive(Debug, Deserialize)]
+struct NiriOutput {
+    logical: NiriOutputLogical,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+struct NiriOutputLogical {
+    x: i32,
+    y: i32,
+    width: u32,
+    height: u32,
 }
 
 #[derive(Debug, Deserialize)]
@@ -82,6 +100,24 @@ struct NiriGeometry {
     height: u32,
 }
 
+impl NiriCompositor {
+    /// 視窗中心點所在輸出的 logical 區塊（scrolling 平面座標）
+    fn output_containing(&self, cx: i32, cy: i32) -> Result<NiriOutputLogical> {
+        let out = Command::new("niri")
+            .args(["msg", "--json", "outputs"])
+            .output()?;
+        let outs: HashMap<String, NiriOutput> = serde_json::from_slice(&out.stdout)?;
+        for o in outs.values() {
+            let (ox, oy) = (o.logical.x, o.logical.y);
+            let (ow, oh) = (o.logical.width as i32, o.logical.height as i32);
+            if cx >= ox && cx < ox + ow && cy >= oy && cy < oy + oh {
+                return Ok(o.logical.clone());
+            }
+        }
+        Err(anyhow!("視窗中心 ({cx},{cy}) 不在任何 niri 輸出的 logical 範圍內"))
+    }
+}
+
 impl Compositor for NiriCompositor {
     fn find_window_geometry(&self, target: &str) -> Result<WindowGeometry> {
         let output = Command::new("niri")
@@ -108,6 +144,13 @@ impl Compositor for NiriCompositor {
                 target
             )
         })
+    }
+
+    fn window_on_output(&self, win: &WindowGeometry) -> Result<WindowGeometry> {
+        let cx = win.x + win.width as i32 / 2;
+        let cy = win.y + win.height as i32 / 2;
+        let out = self.output_containing(cx, cy)?;
+        Self::clip_to_output(win, &out)
     }
 
     fn move_to_workspace(&self, target: &str, workspace_name: &str) -> Result<()> {
@@ -186,6 +229,11 @@ impl Compositor for SwayCompositor {
             .ok_or_else(|| anyhow!("在 Sway 視�窗樹中�找不到符合 '{}' 的視�窗", target))
     }
 
+    fn window_on_output(&self, win: &WindowGeometry) -> Result<WindowGeometry> {
+        // sway 的 rect 即輸出座標（無 scrolling 佈局），原樣返回
+        Ok(win.clone())
+    }
+
     fn move_to_workspace(&self, target: &str, workspace_name: &str) -> Result<()> {
         let criteria = format!(
             "[app_id=\"{}\"] move container to workspace {}",
@@ -255,5 +303,40 @@ mod tests {
         let w: NiriWindow = serde_json::from_str(json).unwrap();
         let g = w.layout.to_geometry().unwrap();
         assert_eq!((g.x, g.y, g.width, g.height), (0, 0, 800, 600));
+    }
+
+    #[test]
+    fn clip_to_output_inside() {
+        // 視窗完全在輸出內 → 原座標（相對輸出 = 0,0 起）
+        let out = NiriOutputLogical { x: 0, y: 0, width: 1920, height: 1080 };
+        let win = WindowGeometry { x: 100, y: 50, width: 800, height: 600 };
+        let g = NiriCompositor::clip_to_output(&win, &out).unwrap();
+        assert_eq!((g.x, g.y, g.width, g.height), (100, 50, 800, 600));
+    }
+
+    #[test]
+    fn clip_to_output_truncates_beyond_output() {
+        // 視窗超出輸出右/下邊界 → clip 到輸出邊界
+        let out = NiriOutputLogical { x: 0, y: 0, width: 1920, height: 1080 };
+        let win = WindowGeometry { x: 1800, y: 1000, width: 500, height: 400 };
+        let g = NiriCompositor::clip_to_output(&win, &out).unwrap();
+        assert_eq!((g.x, g.y, g.width, g.height), (1800, 1000, 120, 80));
+    }
+
+    #[test]
+    fn clip_to_output_translates_to_output_relative() {
+        // 次輸出（DP-2 at 1920,0）+ 視窗超出左邊界 → 座標轉為輸出相對 + clip
+        let out = NiriOutputLogical { x: 1920, y: 0, width: 1200, height: 1920 };
+        let win = WindowGeometry { x: 1900, y: 100, width: 800, height: 600 };
+        let g = NiriCompositor::clip_to_output(&win, &out).unwrap();
+        // x: max(1900,1920)-1920=0; y: 100-0=100; w: min(2700,3120)-1920=780; h: 600
+        assert_eq!((g.x, g.y, g.width, g.height), (0, 100, 780, 600));
+    }
+
+    #[test]
+    fn clip_to_output_no_overlap() {
+        let out = NiriOutputLogical { x: 1920, y: 0, width: 1200, height: 1920 };
+        let win = WindowGeometry { x: 0, y: 0, width: 100, height: 100 }; // 在 DP-1
+        assert!(NiriCompositor::clip_to_output(&win, &out).is_err());
     }
 }
