@@ -324,17 +324,38 @@ cargo bench -- --output-format bencher
 ### 12.2 CI 整合測試（原則 4 Mock Payload）— 未排實作
 
 - **動機**：上游外部工具（niri msg / swaymsg / wf-recorder / ffmpeg / vhs）改版可能改 CLI 參數或 JSON 結構，造成 tapedeck 靜默失敗。以 Mock Payload 樣板在 CI 第一時間抓出。
+- **範圍**：依補充（2026-08-08）— CI 環境在**無 Wayland/GPU 實體顯示器**下也要能順暢跑過 MCP 測試（`tests/mcp_stdio.rs` 除 `#[ignore]` 的 run_visual_loop 外不依賴顯示器 — handshake / tools/list / 錯誤路徑 / inspect_environment 皆無頭可跑，需在 CI 驗證此性質）
 - **前置**：無（測試基建，不影響功能）
 - **任務分解**：
   - CI-T1：建立各版本 `niri msg --json windows` Mock Payload 樣板（含 Bounding Box 解析案例）
   - CI-T2：compositor.rs 解析單元測試改吃 Mock 樣板（取代真實 niri 依賴）
-  - CI-T3：CI workflow 掛載（`cargo test` 全跑，上游樣板更新即紅燈）
+  - CI-T3：CI workflow 掛載（`cargo test` 全跑，上游樣板更新即紅燈）— 含確認 MCP integration tests 在無頭環境通過
 
 ### 12.3 criterion 效能基準（驗證標準）— 未排實作
 
 - **動機**：驗證標準 §8「效能基準：每月執行 `cargo criterion` 比較編碼速度」— 目前無基準可跑
+- **範圍**：依補充（2026-08-08）擴及 `.roll` Parser 與 SQLite 查詢 — 不只編碼速度
 - **前置**：無
 - **任務分解**：
   - B-T1：`benches/` 建立 + `criterion` dev-dependency
   - B-T2：編碼速度基準（ffmpeg 各編碼器 vs optimize 雙 Pass，樣本錄製）
-  - B-T3：每月執行流程文件化（與 §8 驗證標準對齊）
+  - B-T3：`.roll` Parser 基準（roll_parser 解析吞吐，樣本 .roll 集）
+  - B-T4：SQLite 查詢基準（assets 表 CRUD / scan_md_references 常見量級）
+  - B-T5：每月執行流程文件化（與 §8 驗證標準對齊）
+
+### 12.4 webp 壓縮缺陷修正 — ✅ 已完成（2026-08-08）
+
+- **定案（D1，c+b 組合策略）**：先修 webp 幀率壓縮缺陷，再以「場景限制」誠實宣告體積優勢
+- **實作**：`to_webp_cmd` / `recompress_cmd` 引入 `mpdecimate` 多幀差異化（濾除靜態重複幀）+ quality 遞減策略
+- **實測改善**：vhs 靜態錄製 webp 3.1MB → 459KB（6.7x）、動畫 2MB → 428KB（5x）
+- **場景限制宣告（誠實）**：
+  - 體積優勢僅限「Native 高 bitrate 錄製 → gif」（實測 1.8MB → 1.5MB，−17%）
+  - webp 定位為**可嵌入格式**（README/Medium 生態），非壓縮格式 — vhs TUI 低 bitrate 下 gif/webp（幀內壓縮）本質無法小於 VP9 webm（幀間壓縮）
+  - DoD 1 語境已據此更新（tasks.md `[待討論]` → 定案）
+
+### 12.5 Native 軌 e2e 驗證 — ✅ 阻塞解除（2026-08-08）
+
+- **定案（D2 + D3）**：
+  - D2：ExecBefore 改 `spawn()` 背景啟動（不再 `.status()` 阻塞等待 GUI 應用退出）— 已實作，實測 kitty spawn 後 tapedeck 立即進入 WaitWindow
+  - D3：WaitWindow 超時保護確認已存在（deadline + 200ms 輪詢 + bail 錯誤訊息，實測 8s 快速 bail）；JSONL 格式由 timeline.rs 3 個單元測試覆蓋（含 jsonl_roundtrip）
+- **待辦**：完整 Native 錄製 e2e（wf-recorder → timeline.jsonl 產出）需互動 Wayland session — 可重現腳本 `/tmp/opencode/native-e2e.roll`，用戶桌面驗證

@@ -52,6 +52,6 @@
 
 - [x] optimize 雙 Pass 輸出的 GIF/WebP 體積明顯小於原 WebM — **2026-08-08 D1 定案（c+b）：① webp 多幀差異化修正（mpdecimate 濾重複幀，實測 5~7x 縮小）② 場景限制誠實宣告：體積優勢僅限 Native 高 bitrate → gif（−17%）；vhs TUI 語境不宣稱（幀內 vs 幀間壓縮本質）；optimize 定位 = 轉可嵌入格式（design.md 3.1）**
 - [x] filmstrip 依 `Click`/`Type` 時間點輸出 3~5 張步驟圖 — 實測 3 張橫向拼接（92KB PNG）
-- [x] 三種時間點來源（vhs 注入 / JSONL / fallback）皆可運作 — vhs 注入 ✅（f7e8edf 修 frames 目錄 bug）+ fallback ✅（4 點等間距）；JSONL 格式有單元測試（compute_timeline/write_jsonl），Native 端到端待本機 GUI 環境實測
+- [x] 三種時間點來源（vhs 注入 / JSONL / fallback）皆可運作 — vhs 注入 ✅（f7e8edf 修 frames 目錄 bug）+ fallback ✅（4 點等間距）+ JSONL ✅（timeline.rs 3 單元測試含 roundtrip）；Native 端到端可重現腳本 `/tmp/opencode/native-e2e.roll`（互動 Wayland session 驗證 wf-recorder → timeline.jsonl 產出）
 - [x] 全程 XDG 合規，`--output` 可覆寫 — palette 暫存走 XDG cache，輸出可指定
 - [x] 無新增 crate 依賴 — media-export 全數 ffmpeg CLI 適配
