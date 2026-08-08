@@ -154,7 +154,7 @@ pub async fn run(args: RunArgs) -> Result<()> {
 
 執行流程：
 
-1. 執行所有 `ExecBefore`
+1. 執行所有 `ExecBefore`（背景 spawn，不等待退出 — 目標常是常駐 GUI 應用，由後續 `WaitWindow` 負責等就緒；一次性 CLI 命令亦支援）
 2. 轉譯輸入指令為 VHS DSL：
    - `Type(t)` → `Type "t"`
    - `Enter` / `Key(name, n)` → VHS 對應（`Down`×n / `Enter` / `Tab`；字母 → `Type "q"`）
@@ -168,7 +168,7 @@ pub async fn run(args: RunArgs) -> Result<()> {
 
 ### 4.2 Native 後端（run_native）
 
-1. 執行所有 `ExecBefore`
+1. 執行所有 `ExecBefore`（背景 spawn，不等待退出 — 目標常是常駐 GUI 應用，由後續 `WaitWindow` 負責等就緒；一次性 CLI 命令亦支援）
 2. `detect_compositor()` → Box<dyn Compositor>
 3. `WaitWindow`：每 200ms 輪詢 `find_window_geometry` 直到成功或逾時
 4. `TargetWindow` → geometry；`Padding(n)` → `to_wf_recorder_arg(padding)`

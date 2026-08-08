@@ -32,17 +32,20 @@ async fn run_exec_cmds(script: &Script, before: bool, fail_fast: bool) -> Result
             (false, ScriptCommand::ExecAfter(c)) => c,
             _ => continue,
         };
-        let status = TokioCommand::new("sh")
+        // D2 定案：ExecBefore/ExecAfter 的目標常是常駐 GUI 應用
+        // （kitty/foot/obsidian），.status() 等待退出會永遠阻塞。
+        // 改 spawn() 背景啟動：只確認命令能啟動，不等待退出；
+        // 視窗就緒由後續 WaitWindow 指令負責。
+        let spawn = TokioCommand::new("sh")
             .arg("-c")
             .arg(exec)
-            .status()
-            .await
-            .with_context(|| format!("failed to start sh -c: {exec}"))?;
-        if !status.success() {
+            .spawn()
+            .with_context(|| format!("failed to start sh -c: {exec}"));
+        if let Err(e) = spawn {
             if fail_fast {
-                bail!("ExecBefore 失敗（exit {status}）：{exec}");
+                return Err(e);
             }
-            eprintln!("警告：ExecAfter 失敗（exit {status}）：{exec}");
+            eprintln!("警告：ExecAfter 啟動失敗：{e:#}");
         }
     }
     Ok(())
