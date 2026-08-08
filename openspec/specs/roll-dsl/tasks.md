@@ -110,7 +110,7 @@
 
 ## 完成定義（Definition of Done）
 
-- [ ] 三份 examples 全部可 dry-run
-- [ ] test_tui.roll 錄製回歸通過
-- [ ] tui_zago.roll（vhs 後端）實際錄製成功
-- [ ] 文件與實作一致（docs/scripting.md 如有出入一併更新）
+- [x] 三份 examples 全部可 dry-run（test_tui/tui_zago/gui_demo + zago_logo_turtle）
+- [x] test_tui.roll 錄製回歸通過
+- [x] tui_zago.roll（vhs 後端）實際錄製成功
+- [x] 文件與實作一致（docs/scripting.md Set FPS → Set Framerate 修正）

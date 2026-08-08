@@ -1,0 +1,24 @@
+# zago LOGO turtle pen mode: draw a text-buffer polygon without BOX.
+# zago is the upstream project by zonble; this is a Tapedeck recording example.
+
+Set Engine Auto
+Set Output "zago_logo_turtle.gif"
+Set FPS 15
+
+# Open zago's new-buffer flow.
+Type "zago"
+Sleep 1s
+Enter
+Sleep 1s
+
+# Esc opens zago's command prompt. LOGO draws a stepped octagon into the text buffer.
+Escape
+Type "PD FD 16 RT 90 FD 8 RT 90 FD 6 RT 90 FD 3 RT 90 FD 4 RT 90 FD 3 RT 90 FD 6 RT 90 FD 8 PU"
+Enter
+Sleep 2s
+
+# Ctrl+X is zago's nano-compatible exit key.
+Ctrl+X
+Sleep 1s
+Type "n"
+Enter

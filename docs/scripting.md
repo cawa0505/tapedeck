@@ -20,7 +20,7 @@
 # tui_demo.roll
 Set Engine Auto
 Set Output "assets/tui_demo.gif"
-Set FPS 15
+Set Framerate 15
 
 Type "echo Hello Tapedeck"
 Enter
@@ -83,7 +83,7 @@ Optimize AV1 encoder=av1_vaapi
 |------|------|
 | `Set Engine <Auto\|VHS\|Native>` | 選擇執行引擎 |
 | `Set Output "路徑"` | 輸出檔路徑（副檔名決定格式） |
-| `Set FPS 15` | 影格率 |
+| `Set Framerate 15` | 影格率（vhs 用 `Set Framerate`，非 `Set FPS`） |
 | `Set Shell "bash"` | 終端機 shell（vhs 後端用） |
 
 舊寫法相容：`Mode TUI`（= Set Engine Auto）、`Output "x.gif"`、`FPS 15`、`Terminal "kitty"` 仍可解析。
