@@ -327,7 +327,7 @@ cargo bench -- --output-format bencher
 - **範圍**：依補充（2026-08-08）— CI 環境在**無 Wayland/GPU 實體顯示器**下也要能順暢跑過 MCP 測試（`tests/mcp_stdio.rs` 除 `#[ignore]` 的 run_visual_loop 外不依賴顯示器 — handshake / tools/list / 錯誤路徑 / inspect_environment 皆無頭可跑，需在 CI 驗證此性質）
 - **前置**：無（測試基建，不影響功能）
 - **任務分解**：
-  - CI-T1：建立各版本 `niri msg --json windows` Mock Payload 樣板（含 Bounding Box 解析案例）
+  - CI-T1：建立各版本 `niri msg --json windows` Mock Payload 樣板（含 Bounding Box 解析案例）— **含新版（26.x `pos_in_scrolling_layout`+`window_size`）與舊版（`logical_geometry`）兩種結構**（見 docs/ref/niri-windows-json.md；2026-08-08 已真實遇到 26.04 改版，compositor.rs 已雙相容並有 mock 單元測試）
   - CI-T2：compositor.rs 解析單元測試改吃 Mock 樣板（取代真實 niri 依賴）
   - CI-T3：CI workflow 掛載（`cargo test` 全跑，上游樣板更新即紅燈）— 含確認 MCP integration tests 在無頭環境通過
 
