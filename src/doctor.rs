@@ -56,7 +56,8 @@ pub fn run_doctor() {
     }
 
     // 硬體探針寫回 [system.detected]（probe 為 doctor 的 CLI 消費端）
-    let caps = probe::HardwareCapabilities::probe_system();    println!(
+    let caps = probe::HardwareCapabilities::probe_system();
+    println!(
         "\n🔍 Hardware: dri={} encoders={}",
         caps.dri,
         caps.encoders.len()
@@ -143,7 +144,11 @@ fn uinput_module_loaded() -> bool {
 
 /// 檢查結果的 ✅/❌ 前綴
 fn ok_or_missing(ok: bool) -> &'static str {
-    if ok { "✅" } else { "❌" }
+    if ok {
+        "✅"
+    } else {
+        "❌"
+    }
 }
 
 #[cfg(test)]

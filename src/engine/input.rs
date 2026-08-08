@@ -170,41 +170,41 @@ fn ascii_key(c: char) -> Option<(KeyCode, bool)> {
         }
         0x41..=0x5a => Some((KeyCode(KeyCode::KEY_A.0 + (c - 0x41) as u16), true)),
         0x61..=0x7a => Some((KeyCode(KeyCode::KEY_A.0 + (c - 0x61) as u16), false)),
-        0x20..=0x7e => {
+        0x21..=0x7e => {
             // 標點符號表：KEY_ 對應（未列出的符號需 shift 標記，按 US layout）
             let entry = match c {
-                0x21 => (KeyCode::KEY_1, true),          // !
-                0x22 => (KeyCode::KEY_APOSTROPHE, true), // "
-                0x23 => (KeyCode::KEY_3, true),          // #
-                0x24 => (KeyCode::KEY_4, true),          // $
-                0x25 => (KeyCode::KEY_5, true),          // %
-                0x26 => (KeyCode::KEY_7, true),          // &
+                0x21 => (KeyCode::KEY_1, true),           // !
+                0x22 => (KeyCode::KEY_APOSTROPHE, true),  // "
+                0x23 => (KeyCode::KEY_3, true),           // #
+                0x24 => (KeyCode::KEY_4, true),           // $
+                0x25 => (KeyCode::KEY_5, true),           // %
+                0x26 => (KeyCode::KEY_7, true),           // &
                 0x27 => (KeyCode::KEY_APOSTROPHE, false), // '
-                0x28 => (KeyCode::KEY_9, true),          // (
-                0x29 => (KeyCode::KEY_0, true),          // )
-                0x2a => (KeyCode::KEY_8, true),          // *
-                0x2b => (KeyCode::KEY_EQUAL, true),      // +
-                0x2c => (KeyCode::KEY_COMMA, false),     // ,
-                0x2d => (KeyCode::KEY_MINUS, false),     // -
-                0x2e => (KeyCode::KEY_DOT, false),       // .
-                0x2f => (KeyCode::KEY_SLASH, false),     // /
-                0x3a => (KeyCode::KEY_SEMICOLON, true),  // :
-                0x3b => (KeyCode::KEY_SEMICOLON, false), // ;
-                0x3c => (KeyCode::KEY_COMMA, true),      // <
-                0x3d => (KeyCode::KEY_EQUAL, false),     // =
-                0x3e => (KeyCode::KEY_DOT, true),        // >
-                0x3f => (KeyCode::KEY_SLASH, true),      // ?
-                0x40 => (KeyCode::KEY_2, true),          // @
-                0x5b => (KeyCode::KEY_LEFTBRACE, false), // [
-                0x5c => (KeyCode::KEY_BACKSLASH, false), // \
+                0x28 => (KeyCode::KEY_9, true),           // (
+                0x29 => (KeyCode::KEY_0, true),           // )
+                0x2a => (KeyCode::KEY_8, true),           // *
+                0x2b => (KeyCode::KEY_EQUAL, true),       // +
+                0x2c => (KeyCode::KEY_COMMA, false),      // ,
+                0x2d => (KeyCode::KEY_MINUS, false),      // -
+                0x2e => (KeyCode::KEY_DOT, false),        // .
+                0x2f => (KeyCode::KEY_SLASH, false),      // /
+                0x3a => (KeyCode::KEY_SEMICOLON, true),   // :
+                0x3b => (KeyCode::KEY_SEMICOLON, false),  // ;
+                0x3c => (KeyCode::KEY_COMMA, true),       // <
+                0x3d => (KeyCode::KEY_EQUAL, false),      // =
+                0x3e => (KeyCode::KEY_DOT, true),         // >
+                0x3f => (KeyCode::KEY_SLASH, true),       // ?
+                0x40 => (KeyCode::KEY_2, true),           // @
+                0x5b => (KeyCode::KEY_LEFTBRACE, false),  // [
+                0x5c => (KeyCode::KEY_BACKSLASH, false),  // \
                 0x5d => (KeyCode::KEY_RIGHTBRACE, false), // ]
-                0x5e => (KeyCode::KEY_6, true),          // ^
-                0x5f => (KeyCode::KEY_MINUS, true),      // _
-                0x60 => (KeyCode::KEY_GRAVE, false),     // `
-                0x7b => (KeyCode::KEY_LEFTBRACE, true),  // {
-                0x7c => (KeyCode::KEY_BACKSLASH, true),  // |
-                0x7d => (KeyCode::KEY_RIGHTBRACE, true), // }
-                0x7e => (KeyCode::KEY_GRAVE, true),      // ~
+                0x5e => (KeyCode::KEY_6, true),           // ^
+                0x5f => (KeyCode::KEY_MINUS, true),       // _
+                0x60 => (KeyCode::KEY_GRAVE, false),      // `
+                0x7b => (KeyCode::KEY_LEFTBRACE, true),   // {
+                0x7c => (KeyCode::KEY_BACKSLASH, true),   // |
+                0x7d => (KeyCode::KEY_RIGHTBRACE, true),  // }
+                0x7e => (KeyCode::KEY_GRAVE, true),       // ~
                 _ => return None,
             };
             Some(entry)
@@ -356,10 +356,7 @@ impl InputAdapter for UinputAdapter {
             ClickType::Right => KeyCode::BTN_RIGHT,
             ClickType::Middle => KeyCode::BTN_MIDDLE,
         };
-        let events = [
-            *KeyEvent::new(code, 1),
-            *KeyEvent::new(code, 0),
-        ];
+        let events = [*KeyEvent::new(code, 1), *KeyEvent::new(code, 0)];
         self.mouse
             .lock()
             .expect("uinput mouse lock poisoned")
@@ -529,10 +526,16 @@ mod tests {
 
     #[test]
     fn named_key_parsing() {
-        assert_eq!(parse_key_name("Enter").unwrap(), (KeyCode::KEY_ENTER, false));
+        assert_eq!(
+            parse_key_name("Enter").unwrap(),
+            (KeyCode::KEY_ENTER, false)
+        );
         assert_eq!(parse_key_name("F5").unwrap(), (KeyCode::KEY_F5, false));
         assert!(parse_key_name("Ctrl").is_err());
-        assert_eq!(parse_key_name("PageUp").unwrap(), (KeyCode::KEY_PAGEUP, false));
+        assert_eq!(
+            parse_key_name("PageUp").unwrap(),
+            (KeyCode::KEY_PAGEUP, false)
+        );
     }
 
     /// 實機 uinput 注入測試：需 /dev/uinput 可寫的環境（CI/容器跳過）
