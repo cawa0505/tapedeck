@@ -22,6 +22,8 @@ pub enum Commands {
     Clean(CleanArgs),
     /// 檢查系統依賴與硬體能力
     Doctor,
+    /// MCP stdio 伺服器（JSON-RPC 2.0 over stdio）
+    Mcp,
 }
 
 #[derive(Args)]

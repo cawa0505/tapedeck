@@ -15,12 +15,12 @@ JSON action array 轉譯層列後續（非 MVP）、append_signature 預留可�
 
 ## T1：JSON-RPC stdio 伺服器骨架
 
-- [ ] `src/mcp/server.rs`：JSON-RPC 2.0 framing 迴圈（stdin/stdout，**newline-delimited JSON**，每行一則訊息）
-- [ ] initialize 握手（protocolVersion 回顯 + capabilities + serverInfo）→ 等 notifications/initialized
+- [x] `src/mcp/server.rs`：JSON-RPC 2.0 framing 迴圈（stdin/stdout，**newline-delimited JSON**，每行一則訊息）
+- [x] initialize 握手（protocolVersion 回顯 + capabilities + serverInfo）→ 等 notifications/initialized
 - [ ] tools/list 回傳六工具清單（name / description / inputSchema）
-- [ ] `src/mcp/mod.rs` 掛載 server + tools；main.rs `mcp` 子指令
-- [ ] 驗證：`cargo build` + 握手測試
-- [ ] 協議細節以 docs/ref/mcp-stdio-protocol.md（2025-06-18 官方 spec）為準
+- [x] `src/mcp/mod.rs` 掛載 server + tools；main.rs `mcp` 子指令
+- [x] 驗證：`cargo build` + 握手測試
+- [x] 協議細節以 docs/ref/mcp-stdio-protocol.md（2025-06-18 官方 spec）為準
 
 ## T2：六工具與 dispatcher 真正整合
 

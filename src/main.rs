@@ -3,6 +3,7 @@ mod config;
 mod db;
 mod doctor;
 mod engine;
+mod mcp;
 mod media;
 mod paths;
 
@@ -80,6 +81,7 @@ async fn run() -> Result<()> {
             }
         }
         Commands::Doctor => doctor::run_doctor(),
+        Commands::Mcp => mcp::server::serve()?,
     }
 
     Ok(())
