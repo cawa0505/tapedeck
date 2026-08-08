@@ -173,8 +173,8 @@ pub async fn run(args: RunArgs) -> Result<()> {
 3. `WaitWindow`：每 200ms 輪詢 `find_window_geometry` 直到成功或逾時
 4. `TargetWindow` → geometry；`Padding(n)` → `to_wf_recorder_arg(padding)`
 5. `WindowSize` → （記錄於 AST，執行時若 compositor 支援則 resize，否則警告略過）
-6. `wf-recorder -g <geometry> -f <output>`；錄製期間依序執行操作指令（`Type`/`Key`/`Shortcut` 走 wtype、`Click`/`MouseMove` 走 libei），`Sleep` 控制時序；`Roll(s)` 為總錄製時長上限，操作序列執行完未到則補眠到到期
-7. `Shortcut` → wtype 組合鍵送出；`Click`/`MouseMove` 在 libei 不可用時警告略過（能力偵測）
+6. `wf-recorder -g <geometry> -f <output>`；錄製期間依序執行操作指令（輸入後端由 `InputBackend::detect()` 選擇：/dev/uinput 可寫 → UinputNative（鍵盤+滑鼠）、否則 wtype（鍵盤）），`Sleep` 控制時序；`Roll(s)` 為總錄製時長上限，操作序列執行完未到則補眠到到期
+7. `Shortcut` → 組合鍵送出（uinput 或 wtype）；`Click`/`MouseMove` 在無 uinput（/dev/uinput 不可寫）時警告略過（能力偵測，T10）
 8. `ExecAfter`（失敗僅警告）
 9. `Optimize(codec, kv)` → ffmpeg 轉換（如 AV1 vaapi → av1_vaapi 編碼器）
 

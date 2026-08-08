@@ -119,6 +119,18 @@
 - [x] 單元測試：wtype CLI 參數組建純函式（文字轉義/組合鍵/按鍵重複）、libei 偵測邏輯
 - [x] 完成後同步 project.md OQ-02 狀態（決策 ✅ → 實作完成 ✅）
 
+## T10 ✅ 完成：uinput 輸入後端（InputBackend 分層）
+
+規格來源：OQ-02 增強定案（project.md:119，2026-08-08 用戶確認）。範圍：**InputBackend::detect() 優先 uinput（可寫 /dev/uinput）→ 回退 wtype（鍵盤，滑鼠略過）**；Xdotool 排除（X11-only）。crate 定案：`evdev` 0.13.2（lib-4 調研：活躍維護、純 Rust 零系統依賴、xremap/kanata 背書；ref：docs/ref/uinput-rust-crates.md）。
+
+- [x] Cargo.toml 新增 uinput crate（evdev-rs / input-linux 擇一，lib-4 定案）
+- [x] input.rs 重構：`InputBackend` enum（UinputNative/Wtype）+ `InputBackend::detect()`（寫權限探測）+ `UinputAdapter`（虛擬鍵盤/滑鼠：key + relative motion + button）
+- [x] NativeEngine 接線：改用 `InputBackend::detect()` 而非固定 WtypeAdapter
+- [x] doctor 增 Input Provider Diagnostic：/dev/uinput 存在、寫權限、kernel module、選定 backend；權限不足提示 `sudo usermod -aG input $USER`
+- [x] udev rule 提示方案記錄（99-input.rules，MODE=0660 GROUP=input；詢問用戶後才寫入 /etc/udev/rules.d/）
+- [x] 單元測試：detect() 各分支（可寫/不可寫/無裝置）、uinput 事件送出（若環境支援）
+- [x] 完成後同步 design.md §4.2 + project.md OQ-02 + tasks.md
+
 ## 完成定義（Definition of Done）
 
 - [x] 三份 examples 全部可 dry-run（test_tui/tui_zago/gui_demo + zago_logo_turtle）

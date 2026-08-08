@@ -1,5 +1,4 @@
 use crate::cli::RunArgs;
-use crate::engine::input::InputAdapter;
 use crate::engine::roll_parser::{ClickType, Engine, Script, ScriptCommand};
 use crate::paths::resolve_output_path;
 use anyhow::{bail, Context, Result};
@@ -306,7 +305,7 @@ impl RecordingEngine for NativeEngine {
         write_timeline(script, &self.output)?;
 
         // 錄製循環：依序執行操作指令（wtype 鍵盤；libei 滑鼠能力偵測）
-        let input = crate::engine::input::WtypeAdapter::new();
+        let input = crate::engine::input::InputBackend::detect().adapter();
         let roll_dur = match find_cmd(script, |c| matches!(c, ScriptCommand::Roll(_))) {
             Some(ScriptCommand::Roll(secs)) => Some(Duration::from_secs(*secs)),
             _ => None,

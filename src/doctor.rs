@@ -4,9 +4,11 @@
 //! 可偵測損壞/權限不足），靜默執行只關心存不存在，逐項輸出
 //! ✅ OK / ❌ MISSING + Hint。最後調用硬體探針寫回 `[system.detected]`。
 
+use std::path::Path;
 use std::process::Command;
 
 use crate::config;
+use crate::engine::input::InputBackend;
 use crate::engine::probe;
 /// 依賴定義：名稱、版本旗標、用途說明（Hint）
 struct Dep {
@@ -48,9 +50,13 @@ pub fn run_doctor() {
         }
     }
 
+    // 輸入注入後端診斷（OQ-02 / T10：uinput 優先，wtype 回退）
+    if !check_input_provider() {
+        all_ok = false;
+    }
+
     // 硬體探針寫回 [system.detected]（probe 為 doctor 的 CLI 消費端）
-    let caps = probe::HardwareCapabilities::probe_system();
-    println!(
+    let caps = probe::HardwareCapabilities::probe_system();    println!(
         "\n🔍 Hardware: dri={} encoders={}",
         caps.dri,
         caps.encoders.len()
@@ -83,6 +89,61 @@ fn is_available(dep: &Dep) -> bool {
         .stderr(std::process::Stdio::null())
         .status()
         .is_ok_and(|s| s.success())
+}
+
+/// 輸入注入後端診斷（OQ-02 / T10）：uinput 優先，wtype 回退
+///
+/// 檢查三項：/dev/uinput 存在、uinput kernel module 已載入、目前使用者
+/// 對 /dev/uinput 有寫權限。權限不足時提示修正方式（usermod / udev rule）。
+fn check_input_provider() -> bool {
+    println!("\n🎮 Input Provider Diagnostic:");
+
+    let dev_ok = Path::new("/dev/uinput").exists();
+    println!(
+        "{} Device: /dev/uinput {}",
+        ok_or_missing(dev_ok),
+        if dev_ok { "exists" } else { "missing" }
+    );
+
+    let module_ok = uinput_module_loaded();
+    println!(
+        "{} Kernel Module: uinput {}",
+        ok_or_missing(module_ok),
+        if module_ok { "loaded" } else { "not loaded" }
+    );
+
+    let perm_ok = std::fs::OpenOptions::new()
+        .write(true)
+        .open("/dev/uinput")
+        .is_ok();
+    println!(
+        "{} Permission: Current user {} write access to /dev/uinput",
+        ok_or_missing(perm_ok),
+        if perm_ok { "has" } else { "has no" }
+    );
+
+    let backend = InputBackend::detect();
+    println!("👉 Active Input Backend: {backend}");
+
+    if perm_ok {
+        true
+    } else {
+        println!("💡 To unlock full mouse/keyboard automation, fix permission:");
+        println!("   Option A: sudo usermod -aG input $USER (and relogin)");
+        println!("   Option B: Add udev rule /etc/udev/rules.d/99-input.rules");
+        println!("             (KERNEL==\"uinput\", MODE=\"0660\", GROUP=\"input\")");
+        false
+    }
+}
+
+/// uinput kernel module 是否已載入（/sys/class/misc/uinput 存在即載入）
+fn uinput_module_loaded() -> bool {
+    Path::new("/sys/class/misc/uinput").exists()
+}
+
+/// 檢查結果的 ✅/❌ 前綴
+fn ok_or_missing(ok: bool) -> &'static str {
+    if ok { "✅" } else { "❌" }
 }
 
 #[cfg(test)]
@@ -121,5 +182,11 @@ mod tests {
             hint: "test",
         };
         assert!(is_available(&present));
+    }
+
+    #[test]
+    fn ok_or_missing_maps_boolean() {
+        assert_eq!(ok_or_missing(true), "✅");
+        assert_eq!(ok_or_missing(false), "❌");
     }
 }

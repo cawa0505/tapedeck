@@ -116,11 +116,12 @@ pub struct NiriWindow {
 - **MVP 決策（a）**：維持 vhs 雙軌（design.md §4.1）。Native PTY 第三軌**不納入 v0.1**；若社群需求浮現，另開 change-set。
 - **理由**：vhs 已覆蓋 95% TUI 錄製需求；Native PTY 需視窗鎖定 + PTY 配對 + wtype 重定向，複雜度高且非殺手級差異。
 
-### OQ-02：GUI 鍵鼠輸入注入工具鏈（wtype / libei / ydotool）— ✅ 已實作（T9）
+### OQ-02：GUI 鍵鼠輸入注入工具鏈（wtype / libei / uinput）— ✅ 已實作（T9 + T10）
 
 - **議案**：文件宣稱「底層自動對接 wtype/libei（鍵盤）、ydotool/uinput（滑鼠）、hyprctl（視窗）」；實際無任何輸入注入代碼，GUI 自動化指令僅能轉譯進 .tape 給 vhs（TUI 場景）。
 - **技術現實**：Wayland 安全模型禁止任意全域輸入注入；wtype 依賴 compositor 支援、ydotool 需 uinput 群組權限。調研（lib-1）結論：niri/sway 皆支援 `zwp_virtual_keyboard_manager_v1`（wtype）與 libei，ydotool 需 root、xdotool X11-only。
-- **定案**：鍵盤走 wtype CLI 適配器（`src/engine/input.rs`，零新依賴）；滑鼠走 libei，能力偵測 — libei 不可用時 Click/MouseMove 警告略過（T9 完成，ref：docs/ref/wtype.md）。
+- **定案（T9 + T10）**：輸入後端採 `InputBackend::detect()` 分層 — **UinputNative 優先**（`src/engine/input.rs`，evdev crate 0.13.2，/dev/uinput 可寫時鍵盤+滑鼠全包，ref：docs/ref/uinput-rust-crates.md），**wtype 回退**（鍵盤，滑鼠略過）。doctor 含 Input Provider Diagnostic（裝置/核心模組/權限檢查 + 權限不足提示 usermod/udev rule）。
+- **增強定案（uinput，2026-08-08）**：uinput（/dev/uinput）在 kernel 層註冊虛擬鍵盤/滑鼠，全 compositor 通用（含 GNOME/KDE 不吃 zwp_virtual_keyboard 的情況），Rust 有成熟封裝（evdev-rs / input-linux，調研 lib-4 進行中）。分層：`InputBackend::detect()` 優先 uinput（可寫 /dev/uinput）→ 回退 wtype（鍵盤，滑鼠略過）。doctor 增 Input Provider Diagnostic（檢查 /dev/uinput 存在、寫權限、kernel module、選定 backend），權限不足提示 `sudo usermod -aG input $USER`；udev rule 方案（99-input.rules, MODE=0660 GROUP=input）詢問用戶後寫入。
 - **選項**：a) 僅 compositor 原生注入 b) 納入 wtype + libei c) GUI 自動化延後，v0.1 只做視窗鎖定錄製。
 - **MVP 決策（b）**：採用 **wtype + libei**（鍵盤 wtype、滑鼠 libei），無需 root、niri/sway 支援成熟、libei 為 Emulated Input 新標準。ydotool/xdotool 排除。
 - **參考**：`docs/ref/wayland-input-injection.md`（完整事實表與來源）。
