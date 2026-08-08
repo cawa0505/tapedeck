@@ -129,6 +129,51 @@ pub(crate) fn to_webp_cmd(input: &Path, output: &Path, quality: u8) -> Vec<Strin
     ]
 }
 
+/// 同格式壓縮指令（T4b `--max-size`）：依輸出副檔名選降參數策略
+///
+/// - webm → `-c:v libvpx-vp9 -crf <q>`（q 越高越小；0-63）
+/// - gif  → `-vf fps=<n>`（降幀率）
+/// - webp → `-c:v libwebp -quality <q>`（q 越低越小）
+pub(crate) fn recompress_cmd(
+    input: &Path,
+    output: &Path,
+    format: &str,
+    quality: u8,
+) -> Vec<String> {
+    let mut cmd = vec![
+        "-y".into(),
+        "-i".into(),
+        input.to_string_lossy().into_owned(),
+    ];
+    match format {
+        "webm" => {
+            cmd.extend([
+                "-c:v".into(),
+                "libvpx-vp9".into(),
+                "-crf".into(),
+                quality.to_string(),
+                // realtime deadline：壓縮迴圈每輪重編碼，good mode 慢到不實用
+                "-deadline".into(),
+                "realtime".into(),
+            ]);
+        }
+        "gif" => {
+            cmd.extend(["-vf".into(), format!("fps={quality}")]);
+        }
+        "webp" => {
+            cmd.extend([
+                "-c:v".into(),
+                "libwebp".into(),
+                "-quality".into(),
+                quality.to_string(),
+            ]);
+        }
+        _ => {}
+    }
+    cmd.push(output.to_string_lossy().into_owned());
+    cmd
+}
+
 /// 執行 ffmpeg，失敗回傳錯誤（含 stderr 摘要）
 /// 執行 ffmpeg（filmstrip/hstack 等步驟共用）
 pub fn run_ffmpeg_exec(args: &[String]) -> Result<()> {

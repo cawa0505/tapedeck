@@ -518,13 +518,24 @@ pub async fn run(args: RunArgs) -> Result<()> {
 
     let backend: Box<dyn RecordingEngine> = match engine {
         Engine::Vhs => Box::new(VhsEngine::new(output.clone())),
-        Engine::Native => Box::new(NativeEngine::new(output)),
+        Engine::Native => Box::new(NativeEngine::new(output.clone())),
         Engine::Auto => unreachable!("resolve_engine 已解析 Auto"),
     };
 
     backend.prepare(&script).await?;
     backend.record(&script).await?;
     backend.cleanup(&script).await?;
+
+    // T4b：--max-size 超過時同格式壓縮（vhs 無原生 MaxSize，錄後檢查）
+    if let Some(max_mb) = args.max_size {
+        if let Some((before, after)) = crate::media::optimize::compress_to_fit(&output, max_mb)? {
+            println!(
+                "--max-size {max_mb}MB：輸出超過上限（{:.1}MB），已壓縮至 {:.1}MB",
+                before as f64 / (1024.0 * 1024.0),
+                after as f64 / (1024.0 * 1024.0)
+            );
+        }
+    }
     Ok(())
 }
 

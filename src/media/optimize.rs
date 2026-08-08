@@ -58,6 +58,52 @@ pub fn optimize(opts: &OptimizeOptions) -> Result<()> {
     Ok(())
 }
 
+/// T4b `--max-size`：錄製完成後檢查輸出大小，超過則同格式重編碼壓縮
+///
+/// 策略依輸出副檔名：webm → crf 遞增；gif → fps 遞減；webp → quality 遞減。
+/// 每輪壓縮後檢查，符合或達下限即停；回傳 (原大小, 最終大小)。
+pub fn compress_to_fit(output: &Path, max_mb: u32) -> Result<Option<(u64, u64)>> {
+    let max_bytes = u64::from(max_mb) * 1024 * 1024;
+    let size = std::fs::metadata(output)?.len();
+    if size <= max_bytes {
+        return Ok(None);
+    }
+    let format = ext_of(output).unwrap_or_default();
+    let temp = output.with_extension(format!("tmp.{format}"));
+
+    // (初始參數, 每輪步進 ±, 終止參數)：webm crf 遞增；gif fps 遞減；webp quality 遞減
+    let (mut param, step, limit): (u8, i8, u8) = match format.as_str() {
+        "webm" => (40, 10, 63),
+        "gif" => (10, -2, 2),
+        "webp" => (50, -10, 20),
+        _ => bail!("--max-size 僅支援 webm/gif/webp 輸出（目前：{format}）"),
+    };
+
+    let mut current = size;
+    loop {
+        let cmd = ffmpeg::recompress_cmd(output, &temp, &format, param);
+        let out = std::process::Command::new("ffmpeg")
+            .args(&cmd)
+            .output()
+            .context("無法執行 ffmpeg — 請確認已安裝（sudo pacman -S ffmpeg）")?;
+        if !out.status.success() {
+            let stderr = String::from_utf8_lossy(&out.stderr);
+            bail!(
+                "ffmpeg 壓縮失敗（param={param}）：{}",
+                stderr.trim().lines().last().unwrap_or_default()
+            );
+        }
+        let new_size = std::fs::metadata(&temp)?.len();
+        if new_size <= max_bytes || param == limit || new_size >= current {
+            // 符合、達終止參數、或壓縮無效 — 採用這輪結果
+            std::fs::rename(&temp, output)?;
+            return Ok(Some((size, new_size)));
+        }
+        current = new_size;
+        param = (i16::from(param) + i16::from(step)).clamp(0, 63) as u8;
+    }
+}
+
 /// 解析 input/output/format（CLI > output 副檔名 > input 副檔名）
 fn resolve(opts: &OptimizeOptions) -> Result<(PathBuf, PathBuf, String)> {
     let input = opts.input.clone();
@@ -226,5 +272,59 @@ mod tests {
         let cmds = build_commands(&input, &output, &format, 10, 80, &caps).unwrap();
         assert_eq!(cmds.len(), 1);
         assert!(cmds[0].0.iter().any(|a| a == "libwebp"));
+    }
+
+    #[test]
+    fn recompress_webm_uses_vp9_crf() {
+        let cmd = ffmpeg::recompress_cmd(Path::new("in.webm"), Path::new("out.webm"), "webm", 50);
+        assert!(cmd.windows(2).any(|w| w == ["-c:v", "libvpx-vp9"]));
+        assert!(cmd.windows(2).any(|w| w == ["-crf", "50"]));
+    }
+
+    #[test]
+    fn recompress_gif_lowers_fps() {
+        let cmd = ffmpeg::recompress_cmd(Path::new("in.gif"), Path::new("out.gif"), "gif", 4);
+        assert!(cmd.windows(2).any(|w| w == ["-vf", "fps=4"]));
+    }
+
+    #[test]
+    fn recompress_webp_lowers_quality() {
+        let cmd = ffmpeg::recompress_cmd(Path::new("in.webp"), Path::new("out.webp"), "webp", 30);
+        assert!(cmd.windows(2).any(|w| w == ["-quality", "30"]));
+    }
+
+    /// 真實 ffmpeg 迴圈壓縮（需 ffmpeg 且耗時，手動跑：cargo test -- --ignored）
+    #[test]
+    #[ignore]
+    fn compress_to_fit_shrinks_real_webm() {
+        let dir = std::env::temp_dir().join("tapedeck-maxsize-test");
+        std::fs::create_dir_all(&dir).unwrap();
+        let big = dir.join("big.webm");
+        let _ = std::process::Command::new("ffmpeg")
+            .args([
+                "-y",
+                "-f",
+                "lavfi",
+                "-i",
+                "testsrc2=duration=6:size=1280x720:rate=30",
+                "-c:v",
+                "libvpx-vp9",
+                "-b:v",
+                "8M",
+                "-deadline",
+                "realtime",
+            ])
+            .arg(&big)
+            .status()
+            .expect("ffmpeg 產生測試檔");
+        let before = std::fs::metadata(&big).unwrap().len();
+        assert!(before > 1_000_000, "測試檔應 >1MB（實際 {before}）");
+
+        let (orig, final_size) = compress_to_fit(&big, 1).unwrap().unwrap();
+        assert!(
+            final_size <= 1_048_576,
+            "壓縮後應 ≤1MB（實際 {final_size}，原 {orig}）"
+        );
+        std::fs::remove_dir_all(&dir).unwrap();
     }
 }

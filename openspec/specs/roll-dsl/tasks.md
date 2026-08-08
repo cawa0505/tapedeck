@@ -50,7 +50,7 @@
 
 - [x] `--fps FPS`：覆寫腳本 fps（優先序 CLI > 腳本 > config），轉譯層輸出 `Set Framerate <n>`
 - [x] `--gif|--webp`：覆寫輸出路徑副檔名（vhs 以 Output 副檔名決定格式，見 docs/ref/vhs-tape-format.md:9）
-- [x] `--max-size MB`：[待討論] vhs 無 MaxSize 指令（已查 docs/ref/vhs-tape-format.md 無對應）— 選項：a) 僅提示無法直接套用 b) 由 optimize 後處理壓縮（屬 P1 media-export 範圍）c) 其他。實作前需定案
+- [x] `--max-size MB`：定案 b（2026-08-08）— vhs 無 MaxSize 指令，錄製完成後由 tapedeck 檢查檔案大小，超過即呼叫 optimize 同格式壓縮迴圈（webm→libvpx-vp9 -crf 遞增 / gif→fps 遞減 / webp→quality 遞減）直到符合或達下限。實作：`media/ffmpeg.rs::recompress_cmd` + `media/optimize.rs::compress_to_fit` + dispatcher run() 錄後掛接。`#[ignore]` 整合測試（真實 ffmpeg 壓縮 3.9MB webm → <1MB）✅
 - [x] 單元測試：flag 覆寫優先序（CLI > 腳本 > config defaults）— fps ×3 + 格式 ×3
 
 ## T4：驗證（手動）✅ 完成
