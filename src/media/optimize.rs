@@ -81,7 +81,9 @@ pub fn compress_to_fit(output: &Path, max_mb: u32) -> Result<Option<(u64, u64)>>
 
     let mut current = size;
     loop {
-        let cmd = ffmpeg::recompress_cmd(output, &temp, &format, param);
+        // webp 的幀數控制由 recompress_cmd 內建 mpdecimate（多幀差異化）
+        // 負責；此迴圈只管 quality 遞減（D1 定案）。
+        let cmd = ffmpeg::recompress_cmd(output, &temp, &format, param, None);
         let out = std::process::Command::new("ffmpeg")
             .args(&cmd)
             .output()
@@ -276,21 +278,38 @@ mod tests {
 
     #[test]
     fn recompress_webm_uses_vp9_crf() {
-        let cmd = ffmpeg::recompress_cmd(Path::new("in.webm"), Path::new("out.webm"), "webm", 50);
+        let cmd = ffmpeg::recompress_cmd(
+            Path::new("in.webm"),
+            Path::new("out.webm"),
+            "webm",
+            50,
+            None,
+        );
         assert!(cmd.windows(2).any(|w| w == ["-c:v", "libvpx-vp9"]));
         assert!(cmd.windows(2).any(|w| w == ["-crf", "50"]));
     }
 
     #[test]
     fn recompress_gif_lowers_fps() {
-        let cmd = ffmpeg::recompress_cmd(Path::new("in.gif"), Path::new("out.gif"), "gif", 4);
+        let cmd =
+            ffmpeg::recompress_cmd(Path::new("in.gif"), Path::new("out.gif"), "gif", 0, Some(4));
         assert!(cmd.windows(2).any(|w| w == ["-vf", "fps=4"]));
     }
 
     #[test]
-    fn recompress_webp_lowers_quality() {
-        let cmd = ffmpeg::recompress_cmd(Path::new("in.webp"), Path::new("out.webp"), "webp", 30);
+    fn recompress_webp_lowers_quality_and_fps() {
+        let cmd = ffmpeg::recompress_cmd(
+            Path::new("in.webp"),
+            Path::new("out.webp"),
+            "webp",
+            30,
+            None,
+        );
         assert!(cmd.windows(2).any(|w| w == ["-quality", "30"]));
+        // D1：webp 多幀差異化 — mpdecimate 濾除重複幀（體積爆增主因）
+        assert!(cmd
+            .windows(2)
+            .any(|w| w == ["-vf", "mpdecimate,setpts=N/FRAME_RATE/TB"]));
     }
 
     /// 真實 ffmpeg 迴圈壓縮（需 ffmpeg 且耗時，手動跑：cargo test -- --ignored）

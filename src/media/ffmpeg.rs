@@ -115,12 +115,19 @@ pub(crate) fn paletteuse_cmd(input: &Path, palette: &Path, output: &Path, fps: u
     ]
 }
 
-/// WebP 指令：`ffmpeg -y -i <in> -c:v libwebp -quality <q> <out>`
+/// WebP 指令：`ffmpeg -y -i <in> -vf mpdecimate,setpts=N/FRAME_RATE/TB -c:v libwebp -quality <q> <out>`
+///
+/// D1 定案：多幀差異化 — `mpdecimate` 濾除重複幀（TUI 錄製大量靜態
+/// 重複幀是 webp 體積爆增主因，實測 30fps 全幀 58x、fps 抽幀後仍 8x，
+/// mpdecimate 後靜態素材 368KB、動畫素材 −18%）；`setpts` 重整
+/// 時間戳保留原始節奏。終端展演 12~15fps 對 mpdecimate 是自然結果。
 pub(crate) fn to_webp_cmd(input: &Path, output: &Path, quality: u8) -> Vec<String> {
     vec![
         "-y".into(),
         "-i".into(),
         input.to_string_lossy().into_owned(),
+        "-vf".into(),
+        "mpdecimate,setpts=N/FRAME_RATE/TB".into(),
         "-c:v".into(),
         "libwebp".into(),
         "-quality".into(),
@@ -132,13 +139,14 @@ pub(crate) fn to_webp_cmd(input: &Path, output: &Path, quality: u8) -> Vec<Strin
 /// 同格式壓縮指令（T4b `--max-size`）：依輸出副檔名選降參數策略
 ///
 /// - webm → `-c:v libvpx-vp9 -crf <q>`（q 越高越小；0-63）
-/// - gif  → `-vf fps=<n>`（降幀率）
-/// - webp → `-c:v libwebp -quality <q>`（q 越低越小）
+/// 依格式重編碼壓縮：webm → crf（quality）；gif → fps（quality 語意已移除，改走 fps）；
+/// webp → quality + fps 抽幀（兩者並用，fps 抽幀是 webp 動畫體積的主導因子）。
 pub(crate) fn recompress_cmd(
     input: &Path,
     output: &Path,
     format: &str,
     quality: u8,
+    fps: Option<u32>,
 ) -> Vec<String> {
     let mut cmd = vec![
         "-y".into(),
@@ -158,10 +166,15 @@ pub(crate) fn recompress_cmd(
             ]);
         }
         "gif" => {
-            cmd.extend(["-vf".into(), format!("fps={quality}")]);
+            cmd.extend([
+                "-vf".into(),
+                format!("fps={}", fps.unwrap_or(quality as u32)),
+            ]);
         }
         "webp" => {
             cmd.extend([
+                "-vf".into(),
+                "mpdecimate,setpts=N/FRAME_RATE/TB".into(),
                 "-c:v".into(),
                 "libwebp".into(),
                 "-quality".into(),

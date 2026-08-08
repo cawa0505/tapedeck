@@ -46,12 +46,22 @@ pub struct MediaCapabilities {
 ## 3. palettegen 雙 Pass（GIF）
 
 ```
-pass1: ffmpeg -i in.webm -vf "fps=10,palettegen=max_colors=256" palette.png
-pass2: ffmpeg -i in.webm -i palette.png -lavfi "fps=10 [x];[x][1:v] paletteuse=dither=bayer:bayer_scale=5" out.gif
+ffmpeg -vf palettegen ... > palette.png
+ffmpeg -i input -i palette.png -lavfi paletteuse ... output.gif
 ```
 
 - 中間產物 palette.png 落於 `~/.cache/tapedeck/`（暫存，非輸出）
 - `max_colors=256` 固定；dither 參數集中於 optimize.rs 常數，未來可調
+
+## 3.1 WebP 壓製（D1 定案：多幀差異化 + 場景限制宣告）
+
+- WebP 固定套用 `-vf mpdecimate,setpts=N/FRAME_RATE/TB`：濾除重複幀
+  （TUI 錄製大量靜態重複幀是 webp 體積爆增主因 — 實測修正前後 5~7x 差異），
+  `setpts` 重整時間戳保留原始節奏
+- **場景限制誠實宣告**（DoD 1 驗證數據）：
+  - vhs TUI 錄製（低 bitrate VP9）：gif/webp 本質大於原 webm（幀內 vs 幀間壓縮），不宣稱體積優勢
+  - Native 高 bitrate 錄製：gif 略小（實測 −17%），webp 仍大 — 體積優勢僅限「Native 高 bitrate → gif」
+  - optimize 的定位是**轉可嵌入格式**（README/Medium 生態）而非壓縮
 
 ## 4. 時間點來源（timeline.rs）
 
