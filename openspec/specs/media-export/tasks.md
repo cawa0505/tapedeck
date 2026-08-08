@@ -34,19 +34,19 @@
 
 ## T4：filmstrip 子指令
 
-- [ ] `src/media/filmstrip.rs`：抽樣（操作點 → 合併 <500ms → `ffmpeg -ss` 抽幀）
-- [ ] vhs 轉譯層注入 `Screenshot "frames/NN.png"`（dispatcher `script_to_tape_content`）
-- [ ] `hstack` 拼接 + pad 間距
-- [ ] `src/cli.rs`：`filmstrip` 子指令（--roll/--count/--output/--dry-run）
-- [ ] fallback：無 .roll / 無日誌 → 等間距抽樣
-- [ ] 驗證：`tapedeck filmstrip <錄製> --roll examples/test_tui.roll --dry-run` 正確
+- [x] `src/media/filmstrip.rs`：抽樣（操作點 → 合併 <500ms → `ffmpeg -ss` 抽幀）
+- [x] vhs 轉譯層注入 `Screenshot "frames/NN.png"`（dispatcher `script_to_tape_content`）
+- [x] `hstack` 拼接 + pad 間距
+- [x] `src/cli.rs`：`filmstrip` 子指令（--roll/--count/--output/--dry-run）
+- [x] fallback：無 .roll / 無日誌 → 等間距抽樣
+- [x] 驗證：`tapedeck filmstrip <錄製> --roll examples/test_tui.roll --dry-run` 正確
 
 ## T5：端到端驗證
 
-- [ ] 真實錄製 `examples/test_tui.roll` → `optimize` → GIF 成功（小體積、無雜訊）
-- [ ] 真實錄製 → `filmstrip` → 橫向步驟圖 PNG 成功
-- [ ] `cargo fmt` / `cargo clippy`（0 警告）/ `cargo test` 全過
-- [ ] 文件與實作一致（AGENTS.md 文件優先）
+- [x] 真實錄製 `examples/test_tui.roll` → `optimize` → GIF 成功（小體積、無雜訊）
+- [x] 真實錄製 → `filmstrip` → 橫向步驟圖 PNG 成功
+- [x] `cargo fmt` / `cargo clippy`（0 警告）/ `cargo test` 全過
+- [x] 文件與實作一致（AGENTS.md 文件優先）
 
 ## 完成定義（DoD）
 
