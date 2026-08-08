@@ -102,12 +102,15 @@ impl Compositor for NiriCompositor {
             })
             .ok_or_else(|| anyhow!("在 Niri 中�找不到符合 '{}' 的視�窗", target))?;
 
-        Ok(matched.layout.to_geometry().ok_or_else(|| {
-            anyhow!(
-                "Niri 視窗 '{}' 缺少可用的 geometry 欄位（上游結構改版？）",
-                target
-            )
-        })?)
+        matched
+            .layout
+            .to_geometry()
+            .ok_or_else(|| {
+                anyhow!(
+                    "Niri 視窗 '{}' 缺少可用的 geometry 欄位（上游結構改版？）",
+                    target
+                )
+            })?;
     }
 
     fn move_to_workspace(&self, target: &str, workspace_name: &str) -> Result<()> {
