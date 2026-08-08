@@ -148,7 +148,28 @@ pub async fn handle_message(line: &str, state: &mut ServerState) -> Option<Strin
                 .cloned()
                 .unwrap_or_else(|| json!({}));
             match tools::execute(name, arguments).await {
-                Ok(result) => Some(response_result(id, result)),
+                Ok(result) => {
+                    // MCP tools/call 規範：result 必須含 content 陣列 + isError；
+                    // 結構化欄位（record_id/frames/...）一併保留供 client 讀取
+                    let text = result
+                        .get("message")
+                        .and_then(|m| m.as_str())
+                        .or_else(|| result.get("report").and_then(|r| r.as_str()))
+                        .unwrap_or("ok")
+                        .to_string();
+                    let mut wrapped = json!({
+                        "content": [ { "type": "text", "text": text } ],
+                        "isError": false,
+                    });
+                    if let Some(obj) = result.as_object() {
+                        for (k, v) in obj {
+                            if k != "message" && k != "report" {
+                                wrapped[k.as_str()] = v.clone();
+                            }
+                        }
+                    }
+                    Some(response_result(id, wrapped))
+                }
                 Err(tools::ToolError::Unknown(name)) => {
                     Some(response_error(id, -32602, &format!("Unknown tool: {name}")))
                 }

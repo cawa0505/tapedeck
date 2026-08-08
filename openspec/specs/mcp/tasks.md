@@ -45,10 +45,10 @@ JSON action array 轉譯層列後續（非 MVP）、append_signature 預留可�
 
 ## T4：協議測試
 
-- [ ] stdio 完整握手測試：initialize → initialized → tools/list → tools/call
-- [ ] 六工具呼叫測試（含錯誤路徑）
-- [ ] tapedeck_run 回傳格式測試（視覺閉環 + asset protocol）
-- [ ] 驗證：`cargo test` 全綠 + 零警告
+- [x] stdio 完整握手測試：initialize → initialized → tools/list → tools/call
+- [x] 六工具呼叫測試（含錯誤路徑）
+- [x] tapedeck_run 回傳格式測試（視覺閉環 + asset protocol）
+- [x] 驗證：`cargo test` 全綠 + 零警告
 
 ## T5：文件同步
 

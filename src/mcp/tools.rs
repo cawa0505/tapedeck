@@ -5,11 +5,12 @@
 
 use serde_json::{json, Value};
 
-/// tools/list 用的工具 metadata
+/// tools/list 用的工具 metadata（MCP 協議欄位為 camelCase：inputSchema）
 #[derive(serde::Serialize)]
 pub struct Tool {
     pub name: &'static str,
     pub description: &'static str,
+    #[serde(rename = "inputSchema")]
     pub input_schema: Value,
 }
 
