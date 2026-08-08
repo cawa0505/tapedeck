@@ -47,7 +47,31 @@ struct NiriWindow {
 
 #[derive(Debug, Deserialize)]
 struct NiriLayout {
-    logical_geometry: NiriGeometry,
+    /// 新版 (niri 26.x)：視窗在捲動佈局中的位置 + 實際像素尺寸
+    pos_in_scrolling_layout: Option<[f64; 2]>,
+    window_size: Option<[u32; 2]>,
+    /// 舊版 (niri ≤25.x)：logical geometry（上游改版前結構）
+    logical_geometry: Option<NiriGeometry>,
+}
+
+impl NiriLayout {
+    /// 新版欄位優先，舊版 fallback — 相容 niri 上游 JSON 結構改版
+    fn to_geometry(&self) -> Option<WindowGeometry> {
+        if let (Some(pos), Some(size)) = (&self.pos_in_scrolling_layout, &self.window_size) {
+            return Some(WindowGeometry {
+                x: pos[0] as i32,
+                y: pos[1] as i32,
+                width: size[0],
+                height: size[1],
+            });
+        }
+        self.logical_geometry.as_ref().map(|g| WindowGeometry {
+            x: g.x,
+            y: g.y,
+            width: g.width,
+            height: g.height,
+        })
+    }
 }
 
 #[derive(Debug, Deserialize)]
@@ -78,12 +102,12 @@ impl Compositor for NiriCompositor {
             })
             .ok_or_else(|| anyhow!("在 Niri 中�找不到符合 '{}' 的視�窗", target))?;
 
-        Ok(WindowGeometry {
-            x: matched.layout.logical_geometry.x,
-            y: matched.layout.logical_geometry.y,
-            width: matched.layout.logical_geometry.width,
-            height: matched.layout.logical_geometry.height,
-        })
+        Ok(matched.layout.to_geometry().ok_or_else(|| {
+            anyhow!(
+                "Niri 視窗 '{}' 缺少可用的 geometry 欄位（上游結構改版？）",
+                target
+            )
+        })?)
     }
 
     fn move_to_workspace(&self, target: &str, workspace_name: &str) -> Result<()> {
@@ -190,5 +214,46 @@ pub fn detect_compositor() -> Result<Box<dyn Compositor>> {
     } else {
         // 退回 Try Niri � 預設
         Ok(Box::new(NiriCompositor))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// niri 26.x 新版 layout 結構（上游改版後）
+    #[test]
+    fn parses_new_niri_layout() {
+        let json = r#"{
+            "id": 149,
+            "title": "ztest9",
+            "app_id": "kitty",
+            "layout": {
+                "pos_in_scrolling_layout": [1, 1],
+                "tile_size": [1172.0, 1864.0],
+                "window_size": [1168, 1860],
+                "tile_pos_in_workspace_view": null,
+                "window_offset_in_tile": [2.0, 2.0]
+            }
+        }"#;
+        let w: NiriWindow = serde_json::from_str(json).unwrap();
+        let g = w.layout.to_geometry().unwrap();
+        assert_eq!((g.x, g.y, g.width, g.height), (1, 1, 1168, 1860));
+    }
+
+    /// 舊版 layout 結構（niri ≤25.x）：logical_geometry fallback
+    #[test]
+    fn parses_legacy_niri_layout() {
+        let json = r#"{
+            "id": 1,
+            "title": "old",
+            "app_id": "kitty",
+            "layout": {
+                "logical_geometry": { "x": 0, "y": 0, "width": 800, "height": 600 }
+            }
+        }"#;
+        let w: NiriWindow = serde_json::from_str(json).unwrap();
+        let g = w.layout.to_geometry().unwrap();
+        assert_eq!((g.x, g.y, g.width, g.height), (0, 0, 800, 600));
     }
 }
