@@ -1,7 +1,7 @@
 # 忽略敏感目錄和檔案
 .cortexkit/
 .opencode/
-AGENTS.md
+secrets.md
 
 # 忽略編譯和快取
 target/
