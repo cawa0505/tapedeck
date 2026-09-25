@@ -6,6 +6,7 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 
 use super::probe::CompositorError;
+use super::umbriel::UmbrielCompositor;
 
 /// 視窗幾何座標 (Bounding Box)
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -32,7 +33,7 @@ pub trait Compositor {
     /// 根據 title 或 app_id 尋找指定視窗的幾何座標
     fn find_window_geometry(&self, target: &str) -> Result<WindowGeometry>;
     /// 將視窗座標轉為 wf-recorder 可用的輸出座標（並 clip 到輸出交集）。
-    /// niri 的 scrolling 佈局座標 ≠ 輸出座標；sway 無此問題（no-op）。
+    /// niri 的 scrolling 佈局座標 ≠ 輸出座標；sway/umbriel 無此問題（no-op）。
     fn window_on_output(&self, win: &WindowGeometry) -> Result<WindowGeometry>;
     /// 將指定視窗移至靜默背景 Workspace
     #[allow(dead_code)] // OQ-02 GUI 工作接線後使用
@@ -319,6 +320,7 @@ impl Compositor for SwayCompositor {
 pub enum CompositorKind {
     Niri,
     Sway,
+    Umbriel,
 }
 
 impl fmt::Display for CompositorKind {
@@ -326,6 +328,7 @@ impl fmt::Display for CompositorKind {
         match self {
             Self::Niri => write!(f, "Niri"),
             Self::Sway => write!(f, "Sway"),
+            Self::Umbriel => write!(f, "Umbriel"),
         }
     }
 }
@@ -335,12 +338,28 @@ pub struct CompositorReport {
     pub xdg_desktop: Option<String>,
     pub wayland_display: Option<String>,
     pub runtime_dir: Option<PathBuf>,
-    /// 探測到的 niri/sway IPC socket 路徑
+    /// 探測到的 niri/sway/umbriel IPC socket 路徑
     pub socket: Option<PathBuf>,
     /// 偵測成功時的種類（與 `error` 恰其一）
     pub kind: Option<CompositorKind>,
     /// 偵測失敗原因（含 session 變數現值，供 SCN-2/SCN-3 歸因）
     pub error: Option<String>,
+}
+
+/// `umbriel` CLI 的 IPC socket（`$XDG_RUNTIME_DIR` 下）：
+/// `umbriel-<wayland-socket-name>.sock`（樣式匹配容錯；多個時排序取第一）
+fn umbriel_socket(dir: &Path) -> Option<PathBuf> {
+    let entries = std::fs::read_dir(dir).ok()?;
+    let mut names: Vec<_> = entries
+        .filter_map(Result::ok)
+        .map(|e| e.file_name())
+        .filter(|n| {
+            let n = n.to_string_lossy();
+            n.starts_with("umbriel-") && n.ends_with(".sock")
+        })
+        .collect();
+    names.sort();
+    names.first().map(|n| dir.join(n))
 }
 
 /// `niri msg` 的 IPC socket（`$XDG_RUNTIME_DIR` 下）：
@@ -400,12 +419,20 @@ fn probe_socket_kind(runtime_dir: &Path) -> Result<CompositorKind> {
     if sway_socket(runtime_dir, current_uid()).is_some() {
         return Ok(CompositorKind::Sway);
     }
-    anyhow::bail!("niri/sway IPC socket 皆不存在於 {}", runtime_dir.display())
+    if umbriel_socket(runtime_dir).is_some() {
+        return Ok(CompositorKind::Umbriel);
+    }
+    anyhow::bail!(
+        "niri/sway/umbriel IPC socket 皆不存在於 {}",
+        runtime_dir.display()
+    )
 }
 
 /// 供 doctor 顯示：指定 runtime dir 下的 niri/sway socket 路徑
 pub fn probe_socket_path(runtime_dir: &Path) -> Option<PathBuf> {
-    niri_socket(runtime_dir).or_else(|| sway_socket(runtime_dir, current_uid()))
+    niri_socket(runtime_dir)
+        .or_else(|| sway_socket(runtime_dir, current_uid()))
+        .or_else(|| umbriel_socket(runtime_dir))
 }
 
 /// 偵測純函式（REQ-1 順序：先 env 字串、後 socket 探針）——env 字串與
@@ -418,6 +445,9 @@ fn classify(desktop: &str, display: &str, runtime_dir: Option<&Path>) -> Result<
     }
     if desktop.contains("sway") || display.contains("sway") {
         return Ok(CompositorKind::Sway);
+    }
+    if desktop.contains("umbriel") || display.contains("umbriel") {
+        return Ok(CompositorKind::Umbriel);
     }
 
     let runtime_dir = runtime_dir.ok_or_else(|| {
@@ -445,6 +475,7 @@ fn kind_to_compositor(kind: CompositorKind) -> Box<dyn Compositor> {
     match kind {
         CompositorKind::Niri => Box::new(NiriCompositor),
         CompositorKind::Sway => Box::new(SwayCompositor),
+        CompositorKind::Umbriel => Box::new(UmbrielCompositor),
     }
 }
 
@@ -689,11 +720,11 @@ mod tests {
     fn classify_empty_dir_is_explicit_error_no_fallback() {
         // 誤判防呆（design §5）：空目錄 → 明確 Err，絕不落 niri fallback
         let dir = temp_sockets_dir("empty");
-        let err = classify("umbriel", "wayland-0", Some(dir.as_path())).unwrap_err();
+        let err = classify("unknown-de", "wayland-0", Some(dir.as_path())).unwrap_err();
         let msg = err.to_string();
         assert!(msg.contains("無法偵測 Wayland compositor"), "{msg}");
         assert!(
-            msg.contains("\"umbriel\""),
+            msg.contains("\"unknown-de\""),
             "須含 XDG_CURRENT_DESKTOP 現值：{msg}"
         );
         assert!(msg.contains("皆不存在"), "{msg}");
@@ -733,6 +764,7 @@ mod tests {
     fn compositor_kind_display() {
         assert_eq!(CompositorKind::Niri.to_string(), "Niri");
         assert_eq!(CompositorKind::Sway.to_string(), "Sway");
+        assert_eq!(CompositorKind::Umbriel.to_string(), "Umbriel");
     }
 
     #[test]
@@ -746,4 +778,76 @@ mod tests {
             other => panic!("kind/error 恰其一，得到 {other:?}"),
         }
     }
+
+    // ── compositor-ctl T1：umbriel 偵測 ──
+
+    #[test]
+    fn classify_env_umbriel_takes_precedence() {
+        // XDG_CURRENT_DESKTOP / WAYLAND_DISPLAY 字串命中即回傳，不做 socket 探針
+        assert_eq!(
+            classify("umbriel", "wayland-0", None).unwrap(),
+            CompositorKind::Umbriel
+        );
+        assert_eq!(
+            classify("GNOME", "umbriel-wayland-0", None).unwrap(),
+            CompositorKind::Umbriel
+        );
+    }
+
+    #[test]
+    fn classify_socket_probe_recognizes_umbriel() {
+        // 僅 umbriel socket 存在 → 正確分類（REQ-1）
+        let dir = temp_sockets_dir("umbriel-only");
+        std::fs::write(dir.join("umbriel-wayland-0.sock"), b"").unwrap();
+        assert_eq!(
+            classify("", "", Some(dir.as_path())).unwrap(),
+            CompositorKind::Umbriel
+        );
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn socket_probe_prefers_niri_then_sway_then_umbriel() {
+        // 三者混合 → niri 優先（design 決策 3）
+        let dir = temp_sockets_dir("umbriel-mixed-all");
+        std::fs::write(dir.join("niri.sock"), b"").unwrap();
+        std::fs::write(dir.join("sway-ipc.1000.sock"), b"").unwrap();
+        std::fs::write(dir.join("umbriel-wayland-0.sock"), b"").unwrap();
+        assert_eq!(probe_socket_kind(&dir).unwrap(), CompositorKind::Niri);
+        let _ = std::fs::remove_dir_all(&dir);
+
+        // sway + umbriel 混合 → sway 優先
+        let dir = temp_sockets_dir("umbriel-mixed-sway");
+        std::fs::write(dir.join("sway-ipc.1000.sock"), b"").unwrap();
+        std::fs::write(dir.join("umbriel-wayland-0.sock"), b"").unwrap();
+        assert_eq!(probe_socket_kind(&dir).unwrap(), CompositorKind::Sway);
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn umbriel_socket_style_match_sorted_first() {
+        // 多個 umbriel socket → 排序取第一（樣式匹配容錯，比照 niri_socket）
+        let dir = temp_sockets_dir("umbriel-multi");
+        std::fs::write(dir.join("umbriel-wayland-2.sock"), b"").unwrap();
+        std::fs::write(dir.join("umbriel-wayland-0.sock"), b"").unwrap();
+        let found = umbriel_socket(&dir).unwrap();
+        assert!(found.ends_with("umbriel-wayland-0.sock"));
+        // 無關檔名不會誤命中
+        std::fs::write(dir.join("umbrielish.txt"), b"").unwrap();
+        assert!(umbriel_socket(&dir).is_some());
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn probe_socket_path_includes_umbriel() {
+        // doctor 用路徑探針也認得 umbriel（niri/sway 皆缺席時）
+        let dir = temp_sockets_dir("umbriel-path");
+        std::fs::write(dir.join("umbriel-wayland-0.sock"), b"").unwrap();
+        let found = probe_socket_path(&dir);
+        assert!(found.is_some());
+        assert!(found.unwrap().ends_with("umbriel-wayland-0.sock"));
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    // ── compositor-ctl T2：umbriel adapter ──
 }
