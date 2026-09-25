@@ -51,37 +51,47 @@ pub fn build_plan(
 ) -> Result<Vec<RerollItem>> {
     let mut plan = Vec::new();
     for roll in rolls {
-        let script = parse_roll_script(roll)?;
-        let engine = resolve_engine(&script);
-        // 空字串視同未指定 → 預設 output.webm
-        let raw_output = script.output.as_deref().unwrap_or("output.webm");
-        let output = resolve_output_path(
-            if raw_output.is_empty() {
-                "output.webm"
-            } else {
-                raw_output
-            },
-            None,
-        )?;
-
-        let stale = if !stale_only {
-            true
-        } else {
-            match tracker.latest_by_source(&roll.to_string_lossy())? {
-                // 無登錄記錄 → stale
-                None => true,
-                Some(asset) => file_mtime(roll) > asset.mtime,
-            }
-        };
-
-        plan.push(RerollItem {
-            roll: roll.clone(),
-            engine,
-            output,
-            stale,
-        });
+        plan.push(plan_item(roll, stale_only, tracker)?);
     }
     Ok(plan)
+}
+
+/// 單支計畫項（T3 批次逐支容錯共用）：解析失敗時回傳錯誤，由呼叫方決定
+/// 跳過（批次）或整批 bail（--dry-run 計畫層維持 T2 行為）。
+pub(crate) fn plan_item(
+    roll: &Path,
+    stale_only: bool,
+    tracker: &AssetTracker,
+) -> Result<RerollItem> {
+    let script = parse_roll_script(roll)?;
+    let engine = resolve_engine(&script);
+    // 空字串視同未指定 → 預設 output.webm
+    let raw_output = script.output.as_deref().unwrap_or("output.webm");
+    let output = resolve_output_path(
+        if raw_output.is_empty() {
+            "output.webm"
+        } else {
+            raw_output
+        },
+        None,
+    )?;
+
+    let stale = if !stale_only {
+        true
+    } else {
+        match tracker.latest_by_source(&roll.to_string_lossy())? {
+            // 無登錄記錄 → stale
+            None => true,
+            Some(asset) => file_mtime(roll) > asset.mtime,
+        }
+    };
+
+    Ok(RerollItem {
+        roll: roll.to_path_buf(),
+        engine,
+        output,
+        stale,
+    })
 }
 
 /// 檔案 mtime（秒）；取不到（不存在／早於 epoch）→ 0

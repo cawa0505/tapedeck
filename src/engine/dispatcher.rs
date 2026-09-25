@@ -554,7 +554,7 @@ pub async fn execute_script(
             .with_context(|| format!("無法建立輸出路徑: {}", parent.display()))?;
     }
 
-    let backend: Box<dyn RecordingEngine> = match engine {
+    let backend: Box<dyn RecordingEngine + Send> = match engine {
         Engine::Vhs => Box::new(VhsEngine::new(output.clone())),
         Engine::Native => Box::new(NativeEngine::new(output.clone())),
         Engine::Auto => unreachable!("resolve_engine 已解析 Auto"),

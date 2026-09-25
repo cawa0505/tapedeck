@@ -80,7 +80,13 @@ async fn run() -> Result<()> {
                 }
             }
         }
-        Commands::Reroll(args) => engine::reroll::run_dry_run(&args)?,
+        Commands::Reroll(args) => {
+            if args.dry_run {
+                engine::reroll::run_dry_run(&args)?
+            } else if engine::reroll_batch::run(&args).await? {
+                std::process::exit(1);
+            }
+        }
         Commands::Doctor => doctor::run_doctor(),
         Commands::Mcp => mcp::server::serve().await?,
     }
