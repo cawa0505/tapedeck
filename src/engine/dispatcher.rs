@@ -56,6 +56,44 @@ async fn run_exec_cmds(script: &Script, before: bool, fail_fast: bool) -> Result
     Ok(())
 }
 
+/// wf-recorder 收尾寬限：優雅訊號後最多等待此時間，逾時才升級 SIGKILL。
+const RECORDER_SHUTDOWN_GRACE: Duration = Duration::from_secs(5);
+
+/// 錄製程序收尾：送 SIGINT → 等待 `grace` → 逾時升級 SIGKILL。
+///
+/// 為什麼不直接 SIGKILL：wf-recorder 收到 SIGKILL 無法 finalize MP4 容器
+/// （moov atom 缺失），產物不可播（ffprobe 報 Invalid data found）；
+/// 實測 SIGINT 與 SIGTERM 都會走正常結束路徑完檔，故首選 SIGINT，
+/// SIGKILL 僅作為逾時保底避免程序殘留。
+async fn finalize_recorder(
+    child: &mut tokio::process::Child,
+    grace: Duration,
+) -> Result<std::process::ExitStatus> {
+    // SIGINT 首選：優雅訊號讓 wf-recorder 完整寫出容器索引（moov atom）
+    if let Some(pid) = child.id() {
+        // SAFETY：kill 僅對 recorder 的 pid 送訊號；libc 已在依賴樹
+        // （REQ-7 不新增相依），直接呼叫勝過 shelling out 到外部 kill。
+        let rc = unsafe { libc::kill(pid as libc::pid_t, libc::SIGINT) };
+        if rc != 0 {
+            // ESRCH：child 恰好自行退出；wait 仍取得到 status，不視為錯誤
+            eprintln!(
+                "警告：送 SIGINT 給 recorder (pid {pid}) 失敗：{}（可能已自行退出）",
+                std::io::Error::last_os_error()
+            );
+        }
+    }
+    match tokio::time::timeout(grace, child.wait()).await {
+        Ok(status) => Ok(status?),
+        Err(_) => {
+            eprintln!(
+                "警告：recorder 逾時 {grace:?} 未退出，升級 SIGKILL（產物可能缺 moov atom 而不可播）"
+            );
+            let _ = child.kill().await;
+            Ok(child.wait().await?)
+        }
+    }
+}
+
 /// 從 commands 找出第一個相符指令
 fn find_cmd(script: &Script, pred: fn(&ScriptCommand) -> bool) -> Option<&ScriptCommand> {
     script.commands.iter().find(|c| pred(c))
@@ -433,8 +471,8 @@ impl RecordingEngine for NativeEngine {
         } else {
             sleep(Duration::from_millis(500)).await;
         }
-        let _ = child.kill().await;
-        let status = child.wait().await?;
+        // 收尾：SIGINT 優雅完檔（moov atom）→ 逾時 5s 才升級 SIGKILL 保底
+        let status = finalize_recorder(&mut child, RECORDER_SHUTDOWN_GRACE).await?;
 
         if !status.success() {
             bail!("wf-recorder exited with {status}");
@@ -1024,5 +1062,44 @@ mod tests {
 
         let plain: anyhow::Error = anyhow!("其他錯誤");
         assert!(!is_ipc_error(&plain));
+    }
+
+    // ── finalize_recorder：優雅收尾訊號（SIGINT → 逾時升級 SIGKILL）──
+
+    // 模擬 child：trap 安裝後無限迴圈的 sh 處理程序（不要求真 wf-recorder）
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn finalize_recorder_graceful_sigint_exits_zero() {
+        let mut child = TokioCommand::new("sh")
+            .arg("-c")
+            .arg("trap 'exit 0' INT; while :; do sleep 0.05; done")
+            .spawn()
+            .unwrap();
+        // 給 sh 時間安裝 trap（真實 recorder 上線後才會收尾，無此競態）
+        tokio::time::sleep(Duration::from_millis(200)).await;
+        let status = finalize_recorder(&mut child, RECORDER_SHUTDOWN_GRACE)
+            .await
+            .unwrap();
+        // 優雅訊號 → trap 觸發 exit 0（對應 wf-recorder 正常 finalize 完檔）
+        assert!(status.success(), "SIGINT 優雅收尾應 exit 0：{status:?}");
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn finalize_recorder_escalates_to_sigkill_on_timeout() {
+        // trap '' = 忽略 SIGINT/SIGTERM，只能靠逾時後的 SIGKILL 終結
+        let mut child = TokioCommand::new("sh")
+            .arg("-c")
+            .arg("trap '' INT TERM; while :; do sleep 0.05; done")
+            .spawn()
+            .unwrap();
+        // 給 sh 時間安裝 trap
+        tokio::time::sleep(Duration::from_millis(200)).await;
+        let status = finalize_recorder(&mut child, Duration::from_millis(300))
+            .await
+            .unwrap();
+        use std::os::unix::process::ExitStatusExt;
+        assert_eq!(status.code(), None, "應被訊號終結而非正常退出");
+        assert_eq!(status.signal(), Some(libc::SIGKILL), "逾時應升級 SIGKILL");
     }
 }
