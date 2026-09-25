@@ -1,6 +1,8 @@
 use anyhow::{anyhow, Result};
 use serde::Deserialize;
 use std::collections::HashMap;
+use std::fmt;
+use std::path::{Path, PathBuf};
 use std::process::Command;
 
 use super::probe::CompositorError;
@@ -309,23 +311,170 @@ impl Compositor for SwayCompositor {
 }
 
 // =========================================================================
-// 3. 自動偵測當前環境
+// 3. 自動偵測當前環境（REQ-1：env 字串 → socket 探針 → 明確 Err，無 fallback）
 // =========================================================================
-pub fn detect_compositor() -> Result<Box<dyn Compositor>> {
-    let xdg_desktop = std::env::var("XDG_CURRENT_DESKTOP")
-        .unwrap_or_default()
-        .to_lowercase();
-    let wayland_display = std::env::var("WAYLAND_DISPLAY")
-        .unwrap_or_default()
-        .to_lowercase();
 
-    if xdg_desktop.contains("niri") || wayland_display.contains("niri") {
-        Ok(Box::new(NiriCompositor))
-    } else if xdg_desktop.contains("sway") || wayland_display.contains("sway") {
-        Ok(Box::new(SwayCompositor))
-    } else {
-        // 未匹配 → niri fallback（T2 改為 socket 探針與明確錯誤）
-        Ok(Box::new(NiriCompositor))
+/// compositor 種類：分類與實體化解開，`classify` 純函式才可注入測試
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CompositorKind {
+    Niri,
+    Sway,
+}
+
+impl fmt::Display for CompositorKind {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Niri => write!(f, "Niri"),
+            Self::Sway => write!(f, "Sway"),
+        }
+    }
+}
+
+/// doctor 檢查項用的偵測報告（REQ-3）：session 變數現值、socket、偵測結果
+pub struct CompositorReport {
+    pub xdg_desktop: Option<String>,
+    pub wayland_display: Option<String>,
+    pub runtime_dir: Option<PathBuf>,
+    /// 探測到的 niri/sway IPC socket 路徑
+    pub socket: Option<PathBuf>,
+    /// 偵測成功時的種類（與 `error` 恰其一）
+    pub kind: Option<CompositorKind>,
+    /// 偵測失敗原因（含 session 變數現值，供 SCN-2/SCN-3 歸因）
+    pub error: Option<String>,
+}
+
+/// `niri msg` 的 IPC socket（`$XDG_RUNTIME_DIR` 下）：
+/// 新版固定 `niri.sock`，舊版 `niri-<display>.sock`（樣式匹配容錯）
+fn niri_socket(dir: &Path) -> Option<PathBuf> {
+    let modern = dir.join("niri.sock");
+    if modern.exists() {
+        return Some(modern);
+    }
+    let entries = std::fs::read_dir(dir).ok()?;
+    let mut names: Vec<_> = entries
+        .filter_map(Result::ok)
+        .map(|e| e.file_name())
+        .filter(|n| {
+            let n = n.to_string_lossy();
+            n.starts_with("niri-") && n.ends_with(".sock")
+        })
+        .collect();
+    names.sort();
+    names.first().map(|n| dir.join(n))
+}
+
+/// 目前使用者 uid（Linux：讀 /proc/self/status 的 Uid 行；None → 樣式匹配容錯）
+fn current_uid() -> Option<u32> {
+    let status = std::fs::read_to_string("/proc/self/status").ok()?;
+    let line = status.lines().find(|l| l.starts_with("Uid:"))?;
+    line.split_whitespace().nth(1)?.parse().ok()
+}
+
+/// `swaymsg` 的 IPC socket：`$XDG_RUNTIME_DIR/sway-ipc.<uid>.sock`；
+/// uid 解析失敗或檔名非標準時以 `sway-ipc.*.sock` 樣式匹配容錯
+fn sway_socket(dir: &Path, uid: Option<u32>) -> Option<PathBuf> {
+    if let Some(uid) = uid {
+        let exact = dir.join(format!("sway-ipc.{uid}.sock"));
+        if exact.exists() {
+            return Some(exact);
+        }
+    }
+    let entries = std::fs::read_dir(dir).ok()?;
+    let mut names: Vec<_> = entries
+        .filter_map(Result::ok)
+        .map(|e| e.file_name())
+        .filter(|n| {
+            let n = n.to_string_lossy();
+            n.starts_with("sway-ipc.") && n.ends_with(".sock")
+        })
+        .collect();
+    names.sort();
+    names.first().map(|n| dir.join(n))
+}
+
+/// socket 探針（REQ-1 步驟 2）：niri 優先、其次 sway，皆未命中 → Err
+fn probe_socket_kind(runtime_dir: &Path) -> Result<CompositorKind> {
+    if niri_socket(runtime_dir).is_some() {
+        return Ok(CompositorKind::Niri);
+    }
+    if sway_socket(runtime_dir, current_uid()).is_some() {
+        return Ok(CompositorKind::Sway);
+    }
+    anyhow::bail!("niri/sway IPC socket 皆不存在於 {}", runtime_dir.display())
+}
+
+/// 供 doctor 顯示：指定 runtime dir 下的 niri/sway socket 路徑
+pub fn probe_socket_path(runtime_dir: &Path) -> Option<PathBuf> {
+    niri_socket(runtime_dir).or_else(|| sway_socket(runtime_dir, current_uid()))
+}
+
+/// 偵測純函式（REQ-1 順序：先 env 字串、後 socket 探針）——env 字串與
+/// XDG_RUNTIME_DIR 皆可注入，單元測試不動 process env
+fn classify(desktop: &str, display: &str, runtime_dir: Option<&Path>) -> Result<CompositorKind> {
+    let desktop = desktop.to_lowercase();
+    let display = display.to_lowercase();
+    if desktop.contains("niri") || display.contains("niri") {
+        return Ok(CompositorKind::Niri);
+    }
+    if desktop.contains("sway") || display.contains("sway") {
+        return Ok(CompositorKind::Sway);
+    }
+
+    let runtime_dir = runtime_dir.ok_or_else(|| {
+        anyhow!(
+            "無法偵測 Wayland compositor（XDG_CURRENT_DESKTOP={desktop:?}、WAYLAND_DISPLAY={display:?}）：\
+             XDG_RUNTIME_DIR 未設定，找不到 niri/sway IPC socket"
+        )
+    })?;
+    probe_socket_kind(runtime_dir).map_err(|e| {
+        anyhow!(
+            "無法偵測 Wayland compositor（XDG_CURRENT_DESKTOP={desktop:?}、WAYLAND_DISPLAY={display:?}）：{e}"
+        )
+    })
+}
+
+/// 由 process env 讀參數後分類（引擎與 doctor 共用）
+fn detect_kind() -> Result<CompositorKind> {
+    let desktop = std::env::var("XDG_CURRENT_DESKTOP").unwrap_or_default();
+    let display = std::env::var("WAYLAND_DISPLAY").unwrap_or_default();
+    let runtime_dir = std::env::var_os("XDG_RUNTIME_DIR").map(PathBuf::from);
+    classify(&desktop, &display, runtime_dir.as_deref())
+}
+
+fn kind_to_compositor(kind: CompositorKind) -> Box<dyn Compositor> {
+    match kind {
+        CompositorKind::Niri => Box::new(NiriCompositor),
+        CompositorKind::Sway => Box::new(SwayCompositor),
+    }
+}
+
+/// 自動偵測當前環境（REQ-1）：env 字串 → socket 探針 → 明確 Err（無 fallback）
+pub fn detect_compositor() -> Result<Box<dyn Compositor>> {
+    detect_kind().map(kind_to_compositor)
+}
+
+/// doctor 用的偵測報告（REQ-3）：只收集現值，不 panic、不 crash
+pub fn compositor_probe_report() -> CompositorReport {
+    let kind = detect_kind();
+    let runtime_dir = std::env::var_os("XDG_RUNTIME_DIR").map(PathBuf::from);
+    let socket = runtime_dir.as_deref().and_then(probe_socket_path);
+    match kind {
+        Ok(kind) => CompositorReport {
+            xdg_desktop: std::env::var("XDG_CURRENT_DESKTOP").ok(),
+            wayland_display: std::env::var("WAYLAND_DISPLAY").ok(),
+            runtime_dir,
+            socket,
+            kind: Some(kind),
+            error: None,
+        },
+        Err(e) => CompositorReport {
+            xdg_desktop: std::env::var("XDG_CURRENT_DESKTOP").ok(),
+            wayland_display: std::env::var("WAYLAND_DISPLAY").ok(),
+            runtime_dir,
+            socket,
+            kind: None,
+            error: Some(e.to_string()),
+        },
     }
 }
 
@@ -473,5 +622,128 @@ mod tests {
         let err = CompositorError::NotFound("在 Niri 中找不到符合 'x' 的視窗".to_owned());
         assert!(!err.is_ipc());
         assert!(err.to_string().starts_with("查無視窗"));
+    }
+
+    // ── T2：偵測（tempdir 假 socket，不依賴真 session、不動 process env）──
+
+    /// 測試用臨時目錄（無 tempfile 相依；仿 dispatcher tests 慣例）
+    fn temp_sockets_dir(name: &str) -> PathBuf {
+        let dir = std::env::temp_dir().join(format!(
+            "tapedeck-t2-{name}-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        std::fs::create_dir_all(&dir).unwrap();
+        dir
+    }
+
+    #[test]
+    fn classify_env_string_takes_precedence() {
+        // 字串命中即回傳，不做 socket 探針（runtime_dir 傳 None 驗證不觸探）
+        assert_eq!(
+            classify("Niri", "wayland-0", None).unwrap(),
+            CompositorKind::Niri
+        );
+        assert_eq!(classify("sway", "", None).unwrap(), CompositorKind::Sway);
+        // WAYLAND_DISPLAY 字串也可命中
+        assert_eq!(
+            classify("UTF-8", "sway-ipc", None).unwrap(),
+            CompositorKind::Sway
+        );
+    }
+
+    #[test]
+    fn classify_env_miss_falls_back_to_socket_probe() {
+        // 新版 niri.sock
+        let dir = temp_sockets_dir("niri-modern");
+        std::fs::write(dir.join("niri.sock"), b"").unwrap();
+        assert_eq!(
+            classify("GNOME", "wayland-0", Some(dir.as_path())).unwrap(),
+            CompositorKind::Niri
+        );
+        let _ = std::fs::remove_dir_all(&dir);
+
+        // 舊版 niri-<display>.sock
+        let dir = temp_sockets_dir("niri-legacy");
+        std::fs::write(dir.join("niri-wayland-0.sock"), b"").unwrap();
+        assert_eq!(
+            classify("", "wayland-1", Some(dir.as_path())).unwrap(),
+            CompositorKind::Niri
+        );
+        let _ = std::fs::remove_dir_all(&dir);
+
+        // sway-ipc.<uid>.sock
+        let dir = temp_sockets_dir("sway");
+        std::fs::write(dir.join("sway-ipc.1000.sock"), b"").unwrap();
+        assert_eq!(
+            classify("", "", Some(dir.as_path())).unwrap(),
+            CompositorKind::Sway
+        );
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn classify_empty_dir_is_explicit_error_no_fallback() {
+        // 誤判防呆（design §5）：空目錄 → 明確 Err，絕不落 niri fallback
+        let dir = temp_sockets_dir("empty");
+        let err = classify("umbriel", "wayland-0", Some(dir.as_path())).unwrap_err();
+        let msg = err.to_string();
+        assert!(msg.contains("無法偵測 Wayland compositor"), "{msg}");
+        assert!(
+            msg.contains("\"umbriel\""),
+            "須含 XDG_CURRENT_DESKTOP 現值：{msg}"
+        );
+        assert!(msg.contains("皆不存在"), "{msg}");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn classify_without_runtime_dir_is_explicit_error() {
+        // SCN-3：無任何 wayland session 變數/路徑 → 明確錯誤，不誤導
+        let err = classify("", "wayland-0", None).unwrap_err();
+        let msg = err.to_string();
+        assert!(msg.contains("XDG_RUNTIME_DIR 未設定"), "{msg}");
+        assert!(msg.contains("\"wayland-0\""), "{msg}");
+    }
+
+    #[test]
+    fn socket_probe_prefers_niri_over_sway() {
+        let dir = temp_sockets_dir("both");
+        std::fs::write(dir.join("niri.sock"), b"").unwrap();
+        std::fs::write(dir.join("sway-ipc.1000.sock"), b"").unwrap();
+        assert_eq!(probe_socket_kind(&dir).unwrap(), CompositorKind::Niri);
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn sway_socket_style_match_tolerates_uid_mismatch() {
+        let dir = temp_sockets_dir("sway-uid");
+        std::fs::write(dir.join("sway-ipc.4242.sock"), b"").unwrap();
+        let found = sway_socket(&dir, Some(1000)).unwrap();
+        assert!(found.ends_with("sway-ipc.4242.sock"));
+        // uid 未知（/proc 解析失敗）也能以樣式匹配找到
+        assert!(sway_socket(&dir, None).is_some());
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn compositor_kind_display() {
+        assert_eq!(CompositorKind::Niri.to_string(), "Niri");
+        assert_eq!(CompositorKind::Sway.to_string(), "Sway");
+    }
+
+    #[test]
+    fn compositor_report_kind_and_error_are_exclusive() {
+        // 環境相依（開發機非 niri/sway session → error；niri/sway session → kind），
+        // 只驗證恰一為真，且失敗訊息帶 session 變數現值
+        let report = compositor_probe_report();
+        match (&report.kind, &report.error) {
+            (Some(_), None) => {}
+            (None, Some(err)) => assert!(err.contains("XDG_CURRENT_DESKTOP"), "{err}"),
+            other => panic!("kind/error 恰其一，得到 {other:?}"),
+        }
     }
 }

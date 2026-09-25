@@ -61,6 +61,9 @@ pub fn doctor_report() -> String {
         all_ok = false;
     }
 
+    // compositor 偵測診斷（native-compositor-probe REQ-3）
+    out.push_str(&check_compositor());
+
     // 硬體探針寫回 [system.detected]（probe 為 doctor 的 CLI 消費端）
     let caps = probe::HardwareCapabilities::probe_system();
     out.push_str(&format!(
@@ -157,6 +160,44 @@ fn ok_or_missing(ok: bool) -> &'static str {
     } else {
         "❌"
     }
+}
+
+/// compositor 偵測診斷（native-compositor-probe T2.4 ／ REQ-3）：
+/// 顯示偵測結果（Niri/Sway/不可用）、session 變數現值、IPC socket 存在與否。
+/// doctor 不得因偵測失敗而 crash——顯示 ❌ ＋原因即可。
+fn check_compositor() -> String {
+    let report = crate::engine::wayland::compositor::compositor_probe_report();
+    let mut out = String::from("\n🧭 Compositor Diagnostic:\n");
+    out.push_str(&format!(
+        "   XDG_CURRENT_DESKTOP: {}\n",
+        report.xdg_desktop.as_deref().unwrap_or("(未設定)")
+    ));
+    out.push_str(&format!(
+        "   WAYLAND_DISPLAY: {}\n",
+        report.wayland_display.as_deref().unwrap_or("(未設定)")
+    ));
+    out.push_str(&format!(
+        "   XDG_RUNTIME_DIR: {}\n",
+        report
+            .runtime_dir
+            .as_deref()
+            .map(|p| p.display().to_string())
+            .unwrap_or_else(|| "(未設定)".to_owned())
+    ));
+    match (&report.kind, &report.error) {
+        (Some(kind), _) => out.push_str(&format!("✅ [OK] Compositor: 偵測為 {kind}\n")),
+        (None, Some(err)) => {
+            out.push_str(&format!(
+                "❌ [UNAVAILABLE] Compositor 偵測失敗\n   └─ Hint: {err}\n"
+            ));
+        }
+        (None, None) => out.push_str("❌ [UNAVAILABLE] Compositor 偵測失敗（未知原因）\n"),
+    }
+    match &report.socket {
+        Some(p) => out.push_str(&format!("✅ [OK] IPC Socket: {}\n", p.display())),
+        None => out.push_str("❌ [MISSING] IPC Socket: 找不到 niri/sway socket\n"),
+    }
+    out
 }
 
 #[cfg(test)]
