@@ -114,7 +114,37 @@ impl NiriCompositor {
                 return Ok(o.logical.clone());
             }
         }
-        Err(anyhow!("視窗中心 ({cx},{cy}) 不在任何 niri 輸出的 logical 範圍內"))
+        Err(anyhow!(
+            "視窗中心 ({cx},{cy}) 不在任何 niri 輸出的 logical 範圍內"
+        ))
+    }
+
+    /// 視窗與輸出 logical 矩形取交集，座標轉為輸出相對
+    fn clip_to_output(win: &WindowGeometry, out: &NiriOutputLogical) -> Result<WindowGeometry> {
+        let (ox, oy) = (out.x, out.y);
+        let (ow, oh) = (out.width as i32, out.height as i32);
+
+        let x = win.x.max(ox);
+        let y = win.y.max(oy);
+        let right = (win.x + win.width as i32).min(ox + ow);
+        let bottom = (win.y + win.height as i32).min(oy + oh);
+
+        if right <= x || bottom <= y {
+            return Err(anyhow!(
+                "視窗與輸出 ({},{} {}x{}) 無交集",
+                out.x,
+                out.y,
+                out.width,
+                out.height
+            ));
+        }
+
+        Ok(WindowGeometry {
+            x: x - ox,
+            y: y - oy,
+            width: (right - x) as u32,
+            height: (bottom - y) as u32,
+        })
     }
 }
 
@@ -308,8 +338,18 @@ mod tests {
     #[test]
     fn clip_to_output_inside() {
         // 視窗完全在輸出內 → 原座標（相對輸出 = 0,0 起）
-        let out = NiriOutputLogical { x: 0, y: 0, width: 1920, height: 1080 };
-        let win = WindowGeometry { x: 100, y: 50, width: 800, height: 600 };
+        let out = NiriOutputLogical {
+            x: 0,
+            y: 0,
+            width: 1920,
+            height: 1080,
+        };
+        let win = WindowGeometry {
+            x: 100,
+            y: 50,
+            width: 800,
+            height: 600,
+        };
         let g = NiriCompositor::clip_to_output(&win, &out).unwrap();
         assert_eq!((g.x, g.y, g.width, g.height), (100, 50, 800, 600));
     }
@@ -317,8 +357,18 @@ mod tests {
     #[test]
     fn clip_to_output_truncates_beyond_output() {
         // 視窗超出輸出右/下邊界 → clip 到輸出邊界
-        let out = NiriOutputLogical { x: 0, y: 0, width: 1920, height: 1080 };
-        let win = WindowGeometry { x: 1800, y: 1000, width: 500, height: 400 };
+        let out = NiriOutputLogical {
+            x: 0,
+            y: 0,
+            width: 1920,
+            height: 1080,
+        };
+        let win = WindowGeometry {
+            x: 1800,
+            y: 1000,
+            width: 500,
+            height: 400,
+        };
         let g = NiriCompositor::clip_to_output(&win, &out).unwrap();
         assert_eq!((g.x, g.y, g.width, g.height), (1800, 1000, 120, 80));
     }
@@ -326,8 +376,18 @@ mod tests {
     #[test]
     fn clip_to_output_translates_to_output_relative() {
         // 次輸出（DP-2 at 1920,0）+ 視窗超出左邊界 → 座標轉為輸出相對 + clip
-        let out = NiriOutputLogical { x: 1920, y: 0, width: 1200, height: 1920 };
-        let win = WindowGeometry { x: 1900, y: 100, width: 800, height: 600 };
+        let out = NiriOutputLogical {
+            x: 1920,
+            y: 0,
+            width: 1200,
+            height: 1920,
+        };
+        let win = WindowGeometry {
+            x: 1900,
+            y: 100,
+            width: 800,
+            height: 600,
+        };
         let g = NiriCompositor::clip_to_output(&win, &out).unwrap();
         // x: max(1900,1920)-1920=0; y: 100-0=100; w: min(2700,3120)-1920=780; h: 600
         assert_eq!((g.x, g.y, g.width, g.height), (0, 100, 780, 600));
@@ -335,8 +395,18 @@ mod tests {
 
     #[test]
     fn clip_to_output_no_overlap() {
-        let out = NiriOutputLogical { x: 1920, y: 0, width: 1200, height: 1920 };
-        let win = WindowGeometry { x: 0, y: 0, width: 100, height: 100 }; // 在 DP-1
+        let out = NiriOutputLogical {
+            x: 1920,
+            y: 0,
+            width: 1200,
+            height: 1920,
+        };
+        let win = WindowGeometry {
+            x: 0,
+            y: 0,
+            width: 100,
+            height: 100,
+        }; // 在 DP-1
         assert!(NiriCompositor::clip_to_output(&win, &out).is_err());
     }
 }

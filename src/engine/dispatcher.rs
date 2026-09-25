@@ -300,13 +300,6 @@ impl RecordingEngine for NativeEngine {
             eprintln!("警告：WindowSize {w}x{h} 僅記錄，不調整視窗大小（OQ-02 待實作）");
         }
 
-        // Shortcut：OQ-02 已接線 → 錄製循環中執行；此處僅檢查 WindowSize（resize 非輸入注入）
-        if let Some(ScriptCommand::WindowSize(w, h)) =
-            find_cmd(script, |c| matches!(c, ScriptCommand::WindowSize(..)))
-        {
-            eprintln!("警告：WindowSize {w}x{h} 僅記錄，不調整視窗大小（OQ-02 待實作 resize）");
-        }
-
         // wf-recorder + 操作序列（OQ-02 輸入注入）
         let executable = std::env::var("WF_RECORDER").unwrap_or_else(|_| "wf-recorder".to_owned());
         let mut child = TokioCommand::new(&executable)
