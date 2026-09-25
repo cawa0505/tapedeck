@@ -22,6 +22,8 @@ pub enum Commands {
     Clean(CleanArgs),
     /// 檢查系統依賴與硬體能力
     Doctor,
+    /// Re-roll：批次重錄計畫（T2 僅計畫與 --dry-run，批次執行屬 T3）
+    Reroll(RerollArgs),
     /// MCP stdio 伺服器（JSON-RPC 2.0 over stdio）
     Mcp,
 }
@@ -87,4 +89,20 @@ pub struct FilmstripArgs {
     pub output: Option<PathBuf>, // 預設：<input stem>-filmstrip.png（XDG）
     #[arg(long)]
     pub dry_run: bool,
+}
+
+#[derive(Args)]
+pub struct RerollArgs {
+    /// 搜尋根目錄（遞迴蒐集 *.roll），預設 cwd
+    pub path: Option<PathBuf>,
+    /// 僅挑選逾期（stale）的 .roll
+    #[arg(long)]
+    pub stale_only: bool,
+    /// 顯示計畫，不錄製不登錄
+    #[arg(long)]
+    pub dry_run: bool,
+    /// 清理孤兒資產（T3 接手，本票僅宣告欄位）
+    #[arg(long)]
+    #[allow(dead_code)]
+    pub clean: bool,
 }

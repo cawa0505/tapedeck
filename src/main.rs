@@ -80,6 +80,7 @@ async fn run() -> Result<()> {
                 }
             }
         }
+        Commands::Reroll(args) => engine::reroll::run_dry_run(&args)?,
         Commands::Doctor => doctor::run_doctor(),
         Commands::Mcp => mcp::server::serve().await?,
     }

@@ -432,7 +432,7 @@ impl RecordingEngine for NativeEngine {
 // ─────────────────────────────────────────────
 
 /// 解析 .roll 的引擎設定（REQ-4.3）：Auto → 依腳本意圖自動選擇
-fn resolve_engine(script: &Script) -> Engine {
+pub(crate) fn resolve_engine(script: &Script) -> Engine {
     match script.engine {
         Some(Engine::Vhs) => Engine::Vhs,
         Some(Engine::Native) => Engine::Native,

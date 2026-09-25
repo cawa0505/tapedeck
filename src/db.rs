@@ -113,6 +113,24 @@ impl AssetTracker {
             .map_err(Into::into)
     }
 
+    /// 該 source_roll 最新一筆登錄資產（id 最大）；字串完全比對（?1 綁定，不用 LIKE）、唯讀、不動 schema。
+    /// reroll T2 stale 判定的圖譜消費端（openspec/specs/reroll design §4）。
+    pub fn latest_by_source(&self, source: &str) -> Result<Option<Asset>> {
+        let mut stmt = self.conn.prepare(
+            "SELECT path, hash, source_roll, mtime FROM assets
+             WHERE source_roll = ?1 ORDER BY id DESC LIMIT 1",
+        )?;
+        let mut rows = stmt.query_map([source], |r| {
+            Ok(Asset {
+                path: PathBuf::from(r.get::<_, String>(0)?),
+                hash: r.get(1)?,
+                source_roll: r.get(2)?,
+                mtime: r.get(3)?,
+            })
+        })?;
+        Ok(rows.next().transpose()?)
+    }
+
     /// 掃描目錄下所有 .md/.markdown 檔，回傳被引用的資產檔名集合
     /// Markdown 引用掃描：資產檔名 ➔ [(md 路徑, 行號)]（Pillar 2 三層關聯第三層）
     pub fn scan_md_references(
@@ -323,5 +341,30 @@ mod tests {
             Some("video.webm")
         );
         assert_eq!(extract_asset_ref("無引用的一行"), None);
+    }
+
+    #[test]
+    fn latest_by_source_hit_and_miss() {
+        let (_dir, tracker) = tmp_db("lbs");
+        let asset = touch(&_dir, "assets/demo.webm");
+        tracker.register(&asset, Some("demo.roll")).unwrap();
+
+        // 命中：回傳該 source 最新一筆（超過 64 字元 hash、含 source_roll）
+        let got = tracker
+            .latest_by_source("demo.roll")
+            .unwrap()
+            .expect("應命中");
+        assert_eq!(got.path, asset);
+        assert_eq!(got.source_roll.as_deref(), Some("demo.roll"));
+        assert!(got.mtime > 0);
+
+        // 無命中：None
+        assert!(tracker
+            .latest_by_source("never-registered.roll")
+            .unwrap()
+            .is_none());
+
+        // 完全比對：前綴相似字串不誤命中（不用 LIKE）
+        assert!(tracker.latest_by_source("demo").unwrap().is_none());
     }
 }
