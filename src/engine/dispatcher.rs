@@ -6,7 +6,7 @@ use async_trait::async_trait;
 use std::fmt::Write as _;
 use std::path::{Path, PathBuf};
 use std::process::Command;
-use std::time::{Duration, Instant};
+use std::time::{Duration, Instant, SystemTime};
 use tokio::process::Command as TokioCommand;
 use tokio::time::sleep;
 
@@ -81,12 +81,36 @@ fn write_timeline(script: &Script, output: &Path) -> Result<()> {
 
 pub struct VhsEngine {
     output: PathBuf,
+    /// frames sink 暫存目錄（vhs-output-fallback REQ-F1）：codegen 附加行與缺檔
+    /// 偵測都依它而定
+    sink: PathBuf,
 }
 
 impl VhsEngine {
     pub fn new(output: PathBuf) -> Self {
-        Self { output }
+        Self {
+            output,
+            sink: sink_dir(),
+        }
     }
+}
+
+/// 本次執行唯一的 frames sink 暫存目錄（REQ-F1）：`temp_dir()/tapedeck-<pid>-<millis>-sink`。
+/// 在 temp_dir 下唯一命名，與既有 Output 及 filmstrip Screenshot 的 `frames/`
+/// （output 旁）互不衝突。
+fn sink_dir() -> PathBuf {
+    let millis = SystemTime::now()
+        .duration_since(SystemTime::UNIX_EPOCH)
+        .map(|d| d.as_millis())
+        .unwrap_or_default();
+    std::env::temp_dir().join(format!("tapedeck-{}-{}-sink", std::process::id(), millis))
+}
+
+/// 目標輸出是否存在且非 0 bytes（REQ-F2：EXIT=0 ≠ 有產物，事後存在性是唯一可靠偵測點）
+fn target_present(target: &Path) -> bool {
+    std::fs::metadata(target)
+        .map(|m| m.len() > 0)
+        .unwrap_or(false)
 }
 
 #[async_trait]
@@ -96,7 +120,7 @@ impl RecordingEngine for VhsEngine {
     }
 
     async fn record(&self, script: &Script) -> Result<()> {
-        let tape_content = script_to_tape_content(script, &self.output)?;
+        let tape_content = script_to_tape_content(script, &self.output, &self.sink)?;
 
         // vhs 的 Screenshot 指令不自動建目錄 — 預先建立 shots_dir（filmstrip 來源 1）
         if let Some(parent) = self.output.parent() {
@@ -126,9 +150,22 @@ impl RecordingEngine for VhsEngine {
         let _ = std::fs::remove_file(&tape_path);
 
         if !status.success() {
+            // vhs 誠實失敗（REQ-F2：非 0 exit 不救援）；sink best-effort 即清
+            let _ = std::fs::remove_dir_all(&self.sink);
             bail!("VHS exited with {status}");
         }
-        Ok(())
+
+        // REQ-F2：0.12.0 的 GIF 靜默失敗是 EXIT=0 且輸出檔不落地——exit code 靠不住，
+        // 事後檔案存在性是唯一可靠偵測點。
+        if target_present(&self.output) {
+            // SCN-1：健康路徑，sink 未動用 → best-effort 即清（REQ-F5）
+            let _ = std::fs::remove_dir_all(&self.sink);
+            return Ok(());
+        }
+
+        // 目標缺失：先誠實失敗（自力合成由 T2 接手）
+        let _ = std::fs::remove_dir_all(&self.sink);
+        bail!("VHS exit 0 但未產生輸出：{}", self.output.display())
     }
 
     async fn cleanup(&self, script: &Script) -> Result<()> {
@@ -137,7 +174,7 @@ impl RecordingEngine for VhsEngine {
 }
 
 /// 將 .roll 腳本轉換為 VHS 可理解的 .tape 內容（VHS DSL）
-fn script_to_tape_content(script: &Script, output: &Path) -> Result<String> {
+fn script_to_tape_content(script: &Script, output: &Path, sink: &Path) -> Result<String> {
     let mut s = String::new();
 
     writeln!(s, "Output \"{}\"", output.display())?;
@@ -220,6 +257,11 @@ fn script_to_tape_content(script: &Script, output: &Path) -> Result<String> {
             _ => {}
         }
     }
+
+    // REQ-F1：末尾固定附加 `Output "<sink>/frames.png"`（帶引號）。vhs 支援多個
+    // Output（design §1 實測）：主 Output 照跑、frames 目錄照樣搬出。sink 屬
+    // codegen 細節，不進 Script.commands，`--dry-run` 的 commands 數不受影響。
+    writeln!(s, "Output \"{}\"", sink.join("frames.png").display())?;
 
     Ok(s)
 }
@@ -656,7 +698,7 @@ mod tests {
     fn tape_translation_basic() {
         let s = sample_script();
         let out = Path::new("/tmp/out/demo.webm");
-        let tape = script_to_tape_content(&s, out).unwrap();
+        let tape = script_to_tape_content(&s, out, Path::new("/tmp/tapedeck-test-sink")).unwrap();
 
         assert!(tape.contains("Output \"/tmp/out/demo.webm\""));
         assert!(tape.contains("Set Framerate 15"));
@@ -680,7 +722,12 @@ mod tests {
             commands: vec![ScriptCommand::Key("Enter".to_owned(), 1)],
             ..sample_script()
         };
-        let tape = script_to_tape_content(&s, Path::new("/tmp/o.webm")).unwrap();
+        let tape = script_to_tape_content(
+            &s,
+            Path::new("/tmp/o.webm"),
+            Path::new("/tmp/tapedeck-test-sink"),
+        )
+        .unwrap();
         assert!(tape.contains("Enter"));
     }
 
@@ -690,7 +737,12 @@ mod tests {
             commands: vec![ScriptCommand::Key("Enter".to_owned(), 2)],
             ..sample_script()
         };
-        let tape = script_to_tape_content(&s, Path::new("/tmp/o.webm")).unwrap();
+        let tape = script_to_tape_content(
+            &s,
+            Path::new("/tmp/o.webm"),
+            Path::new("/tmp/tapedeck-test-sink"),
+        )
+        .unwrap();
         assert!(tape.contains("Enter 2"));
     }
 
@@ -766,5 +818,69 @@ mod tests {
         let mut out = PathBuf::from("demo.webm");
         apply_format_override(&mut out, false, false);
         assert_eq!(out, PathBuf::from("demo.webm"));
+    }
+
+    // ── vhs-output-fallback T1：sink codegen ＋ 存在性偵測 ──
+
+    #[test]
+    fn tape_appends_sink_output_line_at_end() {
+        let s = sample_script();
+        let sink = Path::new("/tmp/tapedeck-42-1234-sink");
+        let tape = script_to_tape_content(&s, Path::new("/tmp/out/demo.webm"), sink).unwrap();
+
+        let sink_line = format!("Output \"{}/frames.png\"", sink.display());
+        assert!(tape.contains(&sink_line));
+        // sink 行固定在末尾（codegen 附加、帶引號）
+        assert_eq!(tape.trim_end().lines().last(), Some(sink_line.as_str()));
+        // 主 Output 行（首行）不受影響
+        assert_eq!(tape.lines().next(), Some("Output \"/tmp/out/demo.webm\""));
+    }
+
+    #[test]
+    fn sink_dir_unique_across_engine_instances() {
+        let a = VhsEngine::new(PathBuf::from("/tmp/a.gif"));
+        std::thread::sleep(Duration::from_millis(5));
+        let b = VhsEngine::new(PathBuf::from("/tmp/b.gif"));
+        assert_ne!(a.sink, b.sink);
+
+        let name = a.sink.file_name().unwrap().to_string_lossy().into_owned();
+        assert!(name.starts_with(&format!("tapedeck-{}-", std::process::id())));
+        assert!(name.ends_with("-sink"));
+    }
+
+    #[test]
+    fn codegen_never_touches_script_commands() {
+        let s = sample_script();
+        let before = s.commands.clone();
+        let tape =
+            script_to_tape_content(&s, Path::new("/tmp/o.gif"), Path::new("/tmp/sink-t1")).unwrap();
+        assert_eq!(s.commands, before);
+        assert_eq!(s.commands.len(), 10);
+        // sink 屬 codegen 細節：Script.commands 不含 sink，tape 內容才含
+        assert!(!before
+            .iter()
+            .any(|c| format!("{c:?}").contains("frames.png")));
+        assert!(tape.contains("frames.png"));
+    }
+
+    #[test]
+    fn target_present_requires_nonempty_file() {
+        let dir = std::env::temp_dir().join(format!(
+            "tapedeck-t1-target-{}-{}",
+            std::process::id(),
+            SystemTime::now()
+                .duration_since(SystemTime::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        std::fs::create_dir_all(&dir).unwrap();
+        std::fs::write(dir.join("empty.gif"), b"").unwrap();
+        std::fs::write(dir.join("full.gif"), b"GIF89a").unwrap();
+
+        assert!(target_present(&dir.join("full.gif")));
+        // 0 bytes 視同未產出（REQ-F2）
+        assert!(!target_present(&dir.join("empty.gif")));
+        assert!(!target_present(&dir.join("missing.gif")));
+        let _ = std::fs::remove_dir_all(&dir);
     }
 }
