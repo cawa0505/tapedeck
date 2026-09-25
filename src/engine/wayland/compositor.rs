@@ -3,7 +3,9 @@ use serde::Deserialize;
 use std::collections::HashMap;
 use std::process::Command;
 
-/// 視�窗�幾何座標 (Bounding Box)
+use super::probe::CompositorError;
+
+/// 視窗幾何座標 (Bounding Box)
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct WindowGeometry {
     pub x: i32,
@@ -13,7 +15,7 @@ pub struct WindowGeometry {
 }
 
 impl WindowGeometry {
-    /// � 轉�換為 wf-recorder 相容的 `-g` �幾何字�串 (例如 "1900,20 1240x840")
+    ///  轉換為 wf-recorder 相容的 `-g` 幾何字串 (例如 "1900,20 1240x840")
     pub fn to_wf_recorder_arg(&self, padding: u32) -> String {
         let x = self.x - padding as i32;
         let y = self.y - padding as i32;
@@ -23,16 +25,49 @@ impl WindowGeometry {
     }
 }
 
-/// � 跨 Compositor � 抽象介面
+///  跨 Compositor  抽象介面
 pub trait Compositor {
-    /// 根據 title 或 app_id �尋�找指定視�窗的�幾何座標
+    /// 根據 title 或 app_id 尋找指定視窗的幾何座標
     fn find_window_geometry(&self, target: &str) -> Result<WindowGeometry>;
     /// 將視窗座標轉為 wf-recorder 可用的輸出座標（並 clip 到輸出交集）。
     /// niri 的 scrolling 佈局座標 ≠ 輸出座標；sway 無此問題（no-op）。
     fn window_on_output(&self, win: &WindowGeometry) -> Result<WindowGeometry>;
-    /// 將指定視�窗移至�靜默背景 Workspace
+    /// 將指定視窗移至靜默背景 Workspace
     #[allow(dead_code)] // OQ-02 GUI 工作接線後使用
     fn move_to_workspace(&self, target: &str, workspace_name: &str) -> Result<()>;
+}
+
+// ── 錯誤分類輔助：IPC 命令失敗一律歸 CompositorError::Ipc 並附根因（REQ-2）──
+
+/// 執行 compositor IPC 命令並檢查退出碼；失敗歸 `CompositorError::Ipc`
+/// 並附根因（io error 描述或 stderr 尾段）
+fn checked_output(mut cmd: Command, ipc: &str) -> Result<Vec<u8>, CompositorError> {
+    let out = cmd
+        .output()
+        .map_err(|e| CompositorError::Ipc(format!("{ipc} 執行失敗：{e}")))?;
+    if !out.status.success() {
+        return Err(CompositorError::Ipc(format!(
+            "{ipc} 結束碼 {}，stderr：{}",
+            out.status,
+            stderr_tail(&out.stderr)
+        )));
+    }
+    Ok(out.stdout)
+}
+
+/// stderr 尾段（≤200 字元）：命令失敗時的根因載體（空 stderr 以佔位說明）
+fn stderr_tail(bytes: &[u8]) -> String {
+    let s = String::from_utf8_lossy(bytes).trim().to_owned();
+    if s.is_empty() {
+        return "(stderr 空)".to_owned();
+    }
+    const LIMIT: usize = 200;
+    let count = s.chars().count();
+    if count <= LIMIT {
+        return s;
+    }
+    let tail: String = s.chars().skip(count - LIMIT).collect();
+    format!("(截尾) {tail}")
 }
 
 // =========================================================================
@@ -103,10 +138,11 @@ struct NiriGeometry {
 impl NiriCompositor {
     /// 視窗中心點所在輸出的 logical 區塊（scrolling 平面座標）
     fn output_containing(&self, cx: i32, cy: i32) -> Result<NiriOutputLogical> {
-        let out = Command::new("niri")
-            .args(["msg", "--json", "outputs"])
-            .output()?;
-        let outs: HashMap<String, NiriOutput> = serde_json::from_slice(&out.stdout)?;
+        let mut cmd = Command::new("niri");
+        cmd.args(["msg", "--json", "outputs"]);
+        let stdout = checked_output(cmd, "niri msg")?;
+        let outs: HashMap<String, NiriOutput> = serde_json::from_slice(&stdout)
+            .map_err(|e| CompositorError::Ipc(format!("niri msg 輸出 JSON 解析失敗：{e}")))?;
         for o in outs.values() {
             let (ox, oy) = (o.logical.x, o.logical.y);
             let (ow, oh) = (o.logical.width as i32, o.logical.height as i32);
@@ -150,15 +186,13 @@ impl NiriCompositor {
 
 impl Compositor for NiriCompositor {
     fn find_window_geometry(&self, target: &str) -> Result<WindowGeometry> {
-        let output = Command::new("niri")
-            .args(["msg", "--json", "windows"])
-            .output()?;
+        let mut cmd = Command::new("niri");
+        cmd.args(["msg", "--json", "windows"]);
+        let stdout = checked_output(cmd, "niri msg")?;
 
-        if !output.status.success() {
-            return Err(anyhow!("niri msg �� 命令�執行失敗"));
-        }
-
-        let windows: Vec<NiriWindow> = serde_json::from_slice(&output.stdout)?;
+        // 輸出 JSON 解析失敗屬 niri 版本結構改版，重試無益 → 併 IPC 層
+        let windows: Vec<NiriWindow> = serde_json::from_slice(&stdout)
+            .map_err(|e| CompositorError::Ipc(format!("niri msg 輸出 JSON 解析失敗：{e}")))?;
 
         let matched = windows
             .into_iter()
@@ -166,14 +200,15 @@ impl Compositor for NiriCompositor {
                 w.app_id.as_deref() == Some(target)
                     || w.title.as_deref().is_some_and(|t| t.contains(target))
             })
-            .ok_or_else(|| anyhow!("在 Niri 中�找不到符合 '{}' 的視�窗", target))?;
+            .ok_or_else(|| {
+                CompositorError::NotFound(format!("在 Niri 中找不到符合 '{target}' 的視窗"))
+            })?;
 
-        matched.layout.to_geometry().ok_or_else(|| {
-            anyhow!(
-                "Niri 視窗 '{}' 缺少可用的 geometry 欄位（上游結構改版？）",
-                target
-            )
-        })
+        Ok(matched.layout.to_geometry().ok_or_else(|| {
+            CompositorError::NotFound(format!(
+                "Niri 視窗 '{target}' 缺少可用的 geometry 欄位（上游結構改版？）"
+            ))
+        })?)
     }
 
     fn window_on_output(&self, win: &WindowGeometry) -> Result<WindowGeometry> {
@@ -184,7 +219,7 @@ impl Compositor for NiriCompositor {
     }
 
     fn move_to_workspace(&self, target: &str, workspace_name: &str) -> Result<()> {
-        // Niri 可透過 action � 轉派 Workspace
+        // Niri 可透過 action  轉派 Workspace
         let status = Command::new("niri")
             .args(["msg", "action", "focus-window", "--app-id", target])
             .status()?;
@@ -245,18 +280,17 @@ impl SwayCompositor {
 
 impl Compositor for SwayCompositor {
     fn find_window_geometry(&self, target: &str) -> Result<WindowGeometry> {
-        let output = Command::new("swaymsg")
-            .args(["-t", "get_tree", "-r"])
-            .output()?;
+        let mut cmd = Command::new("swaymsg");
+        cmd.args(["-t", "get_tree", "-r"]);
+        let stdout = checked_output(cmd, "swaymsg")?;
 
-        if !output.status.success() {
-            return Err(anyhow!("swaymsg �� 命令�執行失敗"));
-        }
+        // 輸出 JSON 解析失敗屬 sway 版本結構改版，重試無益 → 併 IPC 層
+        let root: SwayNode = serde_json::from_slice(&stdout)
+            .map_err(|e| CompositorError::Ipc(format!("swaymsg 輸出 JSON 解析失敗：{e}")))?;
 
-        let root: SwayNode = serde_json::from_slice(&output.stdout)?;
-
-        Self::search_tree(&root, target)
-            .ok_or_else(|| anyhow!("在 Sway 視�窗樹中�找不到符合 '{}' 的視�窗", target))
+        Ok(Self::search_tree(&root, target).ok_or_else(|| {
+            CompositorError::NotFound(format!("在 Sway 視窗樹中找不到符合 '{target}' 的視窗"))
+        })?)
     }
 
     fn window_on_output(&self, win: &WindowGeometry) -> Result<WindowGeometry> {
@@ -275,7 +309,7 @@ impl Compositor for SwayCompositor {
 }
 
 // =========================================================================
-// 3. 自動�偵�測當前環境
+// 3. 自動偵測當前環境
 // =========================================================================
 pub fn detect_compositor() -> Result<Box<dyn Compositor>> {
     let xdg_desktop = std::env::var("XDG_CURRENT_DESKTOP")
@@ -290,7 +324,7 @@ pub fn detect_compositor() -> Result<Box<dyn Compositor>> {
     } else if xdg_desktop.contains("sway") || wayland_display.contains("sway") {
         Ok(Box::new(SwayCompositor))
     } else {
-        // 退回 Try Niri � 預設
+        // 未匹配 → niri fallback（T2 改為 socket 探針與明確錯誤）
         Ok(Box::new(NiriCompositor))
     }
 }
@@ -408,5 +442,36 @@ mod tests {
             height: 100,
         }; // 在 DP-1
         assert!(NiriCompositor::clip_to_output(&win, &out).is_err());
+    }
+
+    // ── T1：錯誤分類（不跑真 IPC）──
+
+    #[test]
+    fn stderr_tail_handles_empty_and_long() {
+        assert_eq!(stderr_tail(b""), "(stderr 空)");
+        assert_eq!(stderr_tail(b"  \n "), "(stderr 空)");
+        assert_eq!(stderr_tail(b"boom"), "boom");
+        let long: String = "x".repeat(300);
+        let tail = stderr_tail(long.as_bytes());
+        assert!(tail.starts_with("(截尾) "), "{tail}");
+        assert_eq!(tail.chars().count(), "(截尾) ".chars().count() + 200);
+    }
+
+    #[test]
+    fn ipc_error_wraps_root_cause_message() {
+        let err: anyhow::Error = CompositorError::Ipc(
+            "niri msg 執行失敗：No such file or directory (os error 2)".to_owned(),
+        )
+        .into();
+        let msg = format!("{err:#}");
+        assert!(msg.contains("IPC 不可用"), "{msg}");
+        assert!(msg.contains("os error 2"), "須含根因：{msg}");
+    }
+
+    #[test]
+    fn not_found_error_is_retryable_layer() {
+        let err = CompositorError::NotFound("在 Niri 中找不到符合 'x' 的視窗".to_owned());
+        assert!(!err.is_ipc());
+        assert!(err.to_string().starts_with("查無視窗"));
     }
 }

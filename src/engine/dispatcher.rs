@@ -1,7 +1,9 @@
 use crate::cli::RunArgs;
 use crate::engine::roll_parser::{ClickType, Engine, Script, ScriptCommand};
+use crate::engine::wayland::compositor::{detect_compositor, Compositor, WindowGeometry};
+use crate::engine::wayland::probe::CompositorError;
 use crate::paths::resolve_output_path;
-use anyhow::{bail, Context, Result};
+use anyhow::{anyhow, bail, Context, Result};
 use async_trait::async_trait;
 use std::fmt::Write as _;
 use std::path::{Path, PathBuf};
@@ -270,6 +272,40 @@ fn script_to_tape_content(script: &Script, output: &Path, sink: &Path) -> Result
 // Native 後端（GUI）：compositor + wf-recorder
 // ─────────────────────────────────────────────
 
+/// WaitWindow 輪詢（native-compositor-probe T1／REQ-2）：只有「查無視窗」
+/// 可重試（200ms）；IPC 層錯誤立即失敗並保留根因，不得被輪詢吞成「視窗未出現」。
+/// 逾時訊息維持現行結構，附最後一次查無視窗的原因。
+fn wait_for_window(
+    compositor: &dyn Compositor,
+    target: &str,
+    deadline: Instant,
+) -> Result<WindowGeometry> {
+    let mut last_missing;
+    loop {
+        match compositor.find_window_geometry(target) {
+            Ok(g) => return Ok(g),
+            Err(e) if is_ipc_error(&e) => return Err(e),
+            Err(e) => {
+                last_missing = e.to_string();
+                if Instant::now() >= deadline {
+                    return Err(anyhow!(
+                        "WaitWindow 逾時：視窗「{target}」未出現（最後一次查詢：{last_missing}）\
+                         \n提示：可用 `tapedeck run --dry-run` 檢查，或先手動開啟目標視窗"
+                    ));
+                }
+                std::thread::sleep(Duration::from_millis(200));
+            }
+        }
+    }
+}
+
+/// IPC 層錯誤判別：`CompositorError` 經 `?` 包裝後仍可在 error chain 辨識
+fn is_ipc_error(err: &anyhow::Error) -> bool {
+    err.chain()
+        .filter_map(|cause| cause.downcast_ref::<CompositorError>())
+        .any(CompositorError::is_ipc)
+}
+
 pub struct NativeEngine {
     output: PathBuf,
 }
@@ -287,8 +323,6 @@ impl RecordingEngine for NativeEngine {
     }
 
     async fn record(&self, script: &Script) -> Result<()> {
-        use crate::engine::wayland::compositor::detect_compositor;
-
         // 取得目標視窗幾何；compositor（非 Send）僅在 block 內存活，取得後即 drop
         let geometry_arg = {
             let compositor = detect_compositor()?;
@@ -310,20 +344,7 @@ impl RecordingEngine for NativeEngine {
                 _ => 10_000,
             };
             let deadline = Instant::now() + Duration::from_millis(timeout_ms);
-            let geo = loop {
-                match compositor.find_window_geometry(target) {
-                    Ok(g) => break g,
-                    Err(_) if Instant::now() < deadline => {
-                        std::thread::sleep(Duration::from_millis(200));
-                    }
-                    Err(_) => {
-                        bail!(
-                            "WaitWindow 逾時：視窗「{target}」未出現\
-                             \n提示：可用 `tapedeck run --dry-run` 檢查，或先手動開啟目標視窗"
-                        );
-                    }
-                }
-            };
+            let geo = wait_for_window(compositor.as_ref(), target, deadline)?;
 
             // Padding → 幾何外擴
             let padding = match find_cmd(script, |c| matches!(c, ScriptCommand::Padding(_))) {
@@ -882,5 +903,126 @@ mod tests {
         assert!(!target_present(&dir.join("empty.gif")));
         assert!(!target_present(&dir.join("missing.gif")));
         let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    // ── native-compositor-probe T1:WaitWindow 錯誤分類（mock，不跑真 IPC）──
+
+    /// stub：IPC 正常但永遠查無視窗
+    struct NeverFound;
+
+    impl Compositor for NeverFound {
+        fn find_window_geometry(&self, target: &str) -> Result<WindowGeometry> {
+            Err(CompositorError::NotFound(format!("在 Niri 中找不到符合 '{target}' 的視窗")).into())
+        }
+        fn window_on_output(&self, win: &WindowGeometry) -> Result<WindowGeometry> {
+            Ok(win.clone())
+        }
+        fn move_to_workspace(&self, _target: &str, _workspace: &str) -> Result<()> {
+            Ok(())
+        }
+    }
+
+    /// stub：IPC 掛掉（模擬 socket 連不上／命令失敗）
+    struct IpcDead;
+
+    impl Compositor for IpcDead {
+        fn find_window_geometry(&self, _target: &str) -> Result<WindowGeometry> {
+            Err(CompositorError::Ipc(
+                "niri msg 執行失敗：Connection refused (os error 111)".to_owned(),
+            )
+            .into())
+        }
+        fn window_on_output(&self, win: &WindowGeometry) -> Result<WindowGeometry> {
+            Ok(win.clone())
+        }
+        fn move_to_workspace(&self, _target: &str, _workspace: &str) -> Result<()> {
+            Ok(())
+        }
+    }
+
+    /// stub：前兩次查無視窗、第三次成功（驗證 NotFound 會重試）
+    struct FlakyFound(std::sync::atomic::AtomicUsize);
+
+    impl Compositor for FlakyFound {
+        fn find_window_geometry(&self, _target: &str) -> Result<WindowGeometry> {
+            use std::sync::atomic::Ordering;
+            let n = self.0.fetch_add(1, Ordering::SeqCst);
+            if n < 2 {
+                return Err(CompositorError::NotFound("視窗還沒開".to_owned()).into());
+            }
+            Ok(WindowGeometry {
+                x: 1,
+                y: 2,
+                width: 10,
+                height: 20,
+            })
+        }
+        fn window_on_output(&self, win: &WindowGeometry) -> Result<WindowGeometry> {
+            Ok(win.clone())
+        }
+        fn move_to_workspace(&self, _target: &str, _workspace: &str) -> Result<()> {
+            Ok(())
+        }
+    }
+
+    #[test]
+    fn wait_window_ipc_error_fails_fast_without_retry() {
+        let deadline = Instant::now() + Duration::from_secs(30);
+        let started = Instant::now();
+        let err = wait_for_window(&IpcDead, "foot-t1", deadline).unwrap_err();
+        assert!(
+            started.elapsed() < Duration::from_secs(1),
+            "IPC 錯誤不得進入 200ms 輪詢"
+        );
+        let msg = format!("{err:#}");
+        assert!(msg.contains("IPC 不可用"), "須歸因 IPC 層：{msg}");
+        assert!(
+            msg.contains("os error 111") || msg.contains("Connection refused"),
+            "須保留根因：{msg}"
+        );
+        assert!(
+            !msg.contains("WaitWindow 逾時"),
+            "IPC 錯誤不得偽裝成視窗未出現：{msg}"
+        );
+    }
+
+    #[test]
+    fn wait_window_not_found_retries_until_success() {
+        let stub = FlakyFound(std::sync::atomic::AtomicUsize::new(0));
+        let deadline = Instant::now() + Duration::from_secs(5);
+        let geo = wait_for_window(&stub, "foot-t1", deadline).unwrap();
+        assert_eq!((geo.x, geo.y, geo.width, geo.height), (1, 2, 10, 20));
+        assert_eq!(stub.0.load(std::sync::atomic::Ordering::SeqCst), 3);
+    }
+
+    #[test]
+    fn wait_window_timeout_message_keeps_structure_and_cause() {
+        // deadline 已過 → 一次查詢即回報（不得長眠），訊息含最後查無視窗根因
+        let deadline = Instant::now();
+        let started = Instant::now();
+        let err = wait_for_window(&NeverFound, "foot-t1", deadline).unwrap_err();
+        assert!(
+            started.elapsed() < Duration::from_secs(1),
+            "deadline 已過不得再重試"
+        );
+        let msg = format!("{err:#}");
+        assert!(msg.contains("WaitWindow 逾時"), "{msg}");
+        assert!(msg.contains("foot-t1"), "{msg}");
+        assert!(
+            msg.contains("找不到符合"),
+            "逾時訊息須含最後一次查無視窗原因：{msg}"
+        );
+    }
+
+    #[test]
+    fn is_ipc_error_distinguishes_layers() {
+        let ipc: anyhow::Error = CompositorError::Ipc("x".to_owned()).into();
+        assert!(is_ipc_error(&ipc));
+
+        let nf: anyhow::Error = CompositorError::NotFound("y".to_owned()).into();
+        assert!(!is_ipc_error(&nf), "查無視窗不屬 IPC 層");
+
+        let plain: anyhow::Error = anyhow!("其他錯誤");
+        assert!(!is_ipc_error(&plain));
     }
 }
