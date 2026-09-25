@@ -351,7 +351,7 @@ impl RecordingEngine for NativeEngine {
                 Some(ScriptCommand::Padding(p)) => *p,
                 _ => 0,
             };
-            // 視窗座標 → 輸出座標（niri scrolling 平面 ≠ 輸出；sway no-op）
+            // 視窗座標 → 輸出座標（niri scrolling 平面 ≠ 輸出；sway/umbriel no-op）
             let out_geo = compositor.window_on_output(&geo)?;
             out_geo.to_wf_recorder_arg(padding)
         };

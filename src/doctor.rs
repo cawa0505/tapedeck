@@ -163,7 +163,7 @@ fn ok_or_missing(ok: bool) -> &'static str {
 }
 
 /// compositor 偵測診斷（native-compositor-probe T2.4 ／ REQ-3）：
-/// 顯示偵測結果（Niri/Sway/不可用）、session 變數現值、IPC socket 存在與否。
+/// 顯示偵測結果（Niri/Sway/Umbriel/不可用）、session 變數現值、IPC socket 存在與否。
 /// doctor 不得因偵測失敗而 crash——顯示 ❌ ＋原因即可。
 fn check_compositor() -> String {
     let report = crate::engine::wayland::compositor::compositor_probe_report();
@@ -195,7 +195,7 @@ fn check_compositor() -> String {
     }
     match &report.socket {
         Some(p) => out.push_str(&format!("✅ [OK] IPC Socket: {}\n", p.display())),
-        None => out.push_str("❌ [MISSING] IPC Socket: 找不到 niri/sway socket\n"),
+        None => out.push_str("❌ [MISSING] IPC Socket: 找不到 niri/sway/umbriel socket\n"),
     }
     out
 }
