@@ -44,7 +44,7 @@ pub trait Compositor {
 
 /// 執行 compositor IPC 命令並檢查退出碼；失敗歸 `CompositorError::Ipc`
 /// 並附根因（io error 描述或 stderr 尾段）
-fn checked_output(mut cmd: Command, ipc: &str) -> Result<Vec<u8>, CompositorError> {
+pub(super) fn checked_output(mut cmd: Command, ipc: &str) -> Result<Vec<u8>, CompositorError> {
     let out = cmd
         .output()
         .map_err(|e| CompositorError::Ipc(format!("{ipc} 執行失敗：{e}")))?;
