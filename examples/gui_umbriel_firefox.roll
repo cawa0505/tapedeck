@@ -1,0 +1,18 @@
+# T4 e2e：umbriel 實 session 實錄（Native 路徑全程）
+#
+# 用途：compositor-ctl T4 實機驗收素材。目標視窗＝firefox（app_id 精確匹配），
+# 錄製期間零輸入注入（無 Type/Key/Click，不動視窗、不切 workspace），
+# 畫面動態來源＝使用者的常駐畫面內容，符合 REQ-6 不打擾條款。
+#
+# 跑法（需帶 Wayland env，Hermes shell 本身無）：
+#   env WAYLAND_DISPLAY=wayland-0 XDG_RUNTIME_DIR=/run/user/1000 \
+#     ./target/debug/tapedeck run examples/gui_umbriel_firefox.roll
+# 產物：~/.cache/tapedeck/t4_umbriel_firefox.mp4
+Title "T4 umbriel native e2e"
+Set Engine Native
+Set Output "t4_umbriel_firefox.mp4"
+
+TargetWindow "firefox"
+Padding 0
+
+Roll 10s
