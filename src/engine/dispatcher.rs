@@ -493,37 +493,59 @@ fn apply_format_override(output: &mut PathBuf, gif: bool, webp: bool) {
     }
 }
 
-pub async fn run(args: RunArgs) -> Result<()> {
-    let cfg = crate::config::load()?;
-    let mut script = crate::engine::roll_parser::parse_roll_script(&args.script_file)?;
+/// 共用執行選項（reroll T1 前置，design §2）：`execute_script` 的統一參數。
+/// reroll 一律走腳本預設（`RunOptions::default()`）；`output` 覆寫在 reroll 的
+/// 唯一合法用途是指向暫存路徑（design §3）。fps 優先序由呼叫方先行合併。
+#[derive(Debug, Clone, Default)]
+pub struct RunOptions {
+    /// 輸出路徑覆寫（CLI 覆寫語意：None → 腳本內 Output / XDG 預設解析）
+    pub output: Option<PathBuf>,
+    /// 錄後同格式壓縮上限（MB）
+    pub max_size: Option<u32>,
+    /// 輸出格式覆寫：.gif
+    pub gif: bool,
+    /// 輸出格式覆寫：.webp
+    pub webp: bool,
+    /// 只解析與列印，不錄製（dry-run 輸出格式維持 `run` 既有行為）
+    pub dry_run: bool,
+}
 
-    // REQ-6.5 [defaults]：腳本未指定才套用設定檔預設（engine）
+/// 引擎預設補全（REQ-6.5）：腳本未指定 engine 才套用設定檔 defaults.engine
+fn apply_engine_default(script: &mut Script, cfg_engine: Option<&str>) {
     if script.engine.is_none() {
-        script.engine = cfg.defaults.engine.as_deref().and_then(parse_engine_str);
+        script.engine = cfg_engine.and_then(parse_engine_str);
     }
-    // T4b：--fps 覆寫（優先序 CLI > 腳本 > config）
-    apply_fps_precedence(&mut script.fps, args.fps, cfg.defaults.fps);
+}
 
+/// 共用執行入口（reroll T1 前置，design §2）：接收已 parse 的腳本（config 預設
+/// 與 fps 優先序已由呼叫方補全），完成引擎解析、輸出解析（gif/webp 覆寫）、
+/// dry-run 列印、輸出目錄建立、prepare/record/cleanup 與 max-size 壓縮，
+/// 回傳實際輸出路徑。reroll 與 `run` 皆由此進入，單支行為保證一致（REQ-2.1 零旁路）。
+pub async fn execute_script(
+    script_file: &Path,
+    script: Script,
+    opts: &RunOptions,
+) -> Result<PathBuf> {
     let engine = resolve_engine(&script);
     let mut output = resolve_output_path(
         script.output.as_deref().unwrap_or("output.webm"),
-        args.output.as_deref(),
+        opts.output.as_deref(),
     )?;
 
     // T4b：--gif|--webp 覆寫輸出格式（vhs 以 Output 副檔名決定格式，見 ref/vhs-tape-format.md:9）
-    apply_format_override(&mut output, args.gif, args.webp);
+    apply_format_override(&mut output, opts.gif, opts.webp);
 
-    if args.dry_run {
+    if opts.dry_run {
         // REQ-5 + REQ-6.3：印出引擎/輸出（解析後絕對路徑）/fps/指令摘要
         println!(
             "dry-run: {} engine={:?} output={} fps={:?} commands={}",
-            args.script_file.display(),
+            script_file.display(),
             engine,
             output.display(),
             script.fps,
             script.commands.len()
         );
-        return Ok(());
+        return Ok(output);
     }
 
     // REQ-6.2：錄製前建立輸出目錄
@@ -543,7 +565,7 @@ pub async fn run(args: RunArgs) -> Result<()> {
     backend.cleanup(&script).await?;
 
     // T4b：--max-size 超過時同格式壓縮（vhs 無原生 MaxSize，錄後檢查）
-    if let Some(max_mb) = args.max_size {
+    if let Some(max_mb) = opts.max_size {
         if let Some((before, after)) = crate::media::optimize::compress_to_fit(&output, max_mb)? {
             println!(
                 "--max-size {max_mb}MB：輸出超過上限（{:.1}MB），已壓縮至 {:.1}MB",
@@ -552,7 +574,33 @@ pub async fn run(args: RunArgs) -> Result<()> {
             );
         }
     }
-    Ok(())
+    Ok(output)
+}
+
+/// CLI 入口薄殼（T1）：parse → config 預補全 → 組 RunOptions → execute_script。
+/// 對外行為逐項不變（--dry-run 格式、fps 優先序、gif/webp、max-size）。
+pub async fn run(args: RunArgs) -> Result<()> {
+    let cfg = crate::config::load()?;
+    let mut script = crate::engine::roll_parser::parse_roll_script(&args.script_file)?;
+
+    // REQ-6.5 [defaults]：腳本未指定才套用設定檔預設（engine）
+    apply_engine_default(&mut script, cfg.defaults.engine.as_deref());
+    // T4b：--fps 覆寫（優先序 CLI > 腳本 > config）
+    apply_fps_precedence(&mut script.fps, args.fps, cfg.defaults.fps);
+
+    execute_script(
+        &args.script_file,
+        script,
+        &RunOptions {
+            output: args.output,
+            max_size: args.max_size,
+            gif: args.gif,
+            webp: args.webp,
+            dry_run: args.dry_run,
+        },
+    )
+    .await
+    .map(|_| ())
 }
 
 /// 產生媒體連結語法 (zola/md/html)
