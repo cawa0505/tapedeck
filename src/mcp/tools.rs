@@ -538,7 +538,9 @@ mod tests {
         if !matches!(backend, crate::engine::input::InputBackend::Wtype) {
             return;
         }
-        let script = "MouseClick left\n";
+        // 「Click Left」是我方指令（觸發 preflight）；「MouseClick left」是 vhs
+        // passthrough 指令，不歸 tapedeck 的 backend 檢查管
+        let script = "Click Left\n";
         let err = execute("tapedeck_run", json!({ "script": script }))
             .await
             .unwrap_err();
