@@ -1,0 +1,159 @@
+---
+import Header from '../components/Header.astro';
+import Footer from '../components/Footer.astro';
+---
+
+<!doctype html>
+<html lang="zh-Hant">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>入門教學 — tapedeck</title>
+    <style>
+      :root {
+        --bg: #ffffff;
+        --bg-header: #fafafa;
+        --fg: #1a1a1a;
+        --fg-muted: #666666;
+        --border: #e5e5e5;
+      }
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --bg: #111111;
+          --bg-header: #161616;
+          --fg: #e8e8e8;
+          --fg-muted: #999999;
+          --border: #2a2a2a;
+        }
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        background: var(--bg);
+        color: var(--fg);
+        font-family: system-ui, -apple-system, "Segoe UI", "Noto Sans TC", sans-serif;
+        line-height: 1.6;
+      }
+      .container {
+        max-width: 960px;
+        margin: 0 auto;
+        padding: 4rem 1.5rem 2rem;
+      }
+      h1 {
+        margin: 0 0 0.5rem;
+      }
+      .lede {
+        color: var(--fg-muted);
+        font-size: 1.05rem;
+        margin-top: 0;
+      }
+      h2 {
+        margin-top: 3rem;
+        padding-top: 1.5rem;
+        border-top: 1px solid var(--border);
+        font-size: 1.3rem;
+      }
+      code {
+        font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+        font-size: 0.9em;
+        background: var(--bg-header);
+        border: 1px solid var(--border);
+        border-radius: 4px;
+        padding: 0.05em 0.35em;
+      }
+      pre {
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        background: var(--bg-header);
+        padding: 1rem 1.25rem;
+        overflow-x: auto;
+      }
+      pre code {
+        display: block;
+        background: none;
+        border: none;
+        padding: 0;
+        font-size: 0.92rem;
+      }
+      .deps {
+        color: var(--fg-muted);
+        font-size: 0.92rem;
+      }
+      ol.steps {
+        padding-left: 1.4rem;
+        display: grid;
+        gap: 1.4rem;
+      }
+      ol.steps li::marker {
+        font-weight: 700;
+      }
+      .hint {
+        border-left: 3px solid var(--border);
+        padding: 0.2rem 0 0.2rem 1rem;
+        color: var(--fg-muted);
+        font-size: 0.92rem;
+      }
+      ul.checklist {
+        padding-left: 1.2rem;
+      }
+      ul.checklist li {
+        margin-bottom: 0.35rem;
+      }
+    </style>
+  </head>
+  <body>
+    <Header />
+    <main class="container">
+      <h1>入門教學</h1>
+      <p class="lede">安裝 tapedeck、跑一次環境診斷，然後用第一支 .roll 腳本錄出你的第一支影片。</p>
+
+      <h2>安裝</h2>
+      <p>tapedeck 已發布到 crates.io，需要 Rust + cargo：</p>
+      <pre><code>cargo install tapedeck-cli</code></pre>
+      <p class="deps">額外依賴：ffmpeg、vhs（TUI 錄製）、wf-recorder（GUI Wayland 錄製）。</p>
+      <p>想追蹤尚未發布的功能，可以從原始碼建置（開發用）：</p>
+      <pre><code>git clone https://github.com/cawa0505/tapedeck.git && cd tapedeck
+cargo install --path .</code></pre>
+
+      <h2>跑一次環境診斷</h2>
+      <p>正式錄影前，先用 <code>tapedeck doctor</code> 體檢執行環境：</p>
+      <pre><code>tapedeck doctor</code></pre>
+      <p>doctor 會檢查：</p>
+      <ul class="checklist">
+        <li><strong>uinput 輸入注入</strong>：<code>/dev/uinput</code> 裝置與 kernel module 是否就緒、目前使用者是否有寫入權限——權限不足時會給出 usermod / udev rule 的修正提示</li>
+        <li><strong>輸入後端</strong>：偵測目前生效的 backend（uinput 優先，wtype 回退）</li>
+        <li><strong>硬體編碼能力</strong>：偵測 GPU VA-API 編碼，判斷能否走零負擔的硬體編碼鏈</li>
+      </ul>
+      <p class="hint">同樣的診斷能力也包裝成 MCP 工具（tapedeck_inspect_environment），讓 Agent 在寫腳本前先知道環境狀態。</p>
+
+      <h2>第一支 .roll：從腳本到 mp4</h2>
+      <p>.roll 是 tapedeck 的宣告式錄影腳本。檔案內容長這樣——存成 <code>my_first.roll</code>：</p>
+      <pre><code>Set Engine Auto
+Set Output "hello_tapedeck.mp4"
+Set Framerate 15
+
+Type "echo Hello Tapedeck"
+Enter
+Sleep 1s</code></pre>
+      <p>三行設定的意思：<code>Set Engine Auto</code> 讓 tapedeck 自動選擇後端（TUI 腳本走 vhs）；<code>Set Output</code> 指定輸出檔路徑，副檔名決定格式；<code>Set Framerate</code> 設定影格率。接著的指令流是在終端機輸入一行 <code>echo Hello Tapedeck</code>、按 Enter，然後停一秒。</p>
+
+      <ol class="steps">
+        <li>
+          <strong>先乾跑</strong>：不真的錄影，只確認腳本解析與引擎選擇正確：
+          <pre><code>tapedeck run --dry-run my_first.roll</code></pre>
+          <p class="hint">腳本有語法錯誤時，錯誤訊息會指出行號與失敗原因。</p>
+        </li>
+        <li>
+          <strong>正式執行</strong>：
+          <pre><code>tapedeck run my_first.roll</code></pre>
+        </li>
+        <li>
+          <strong>拿走產出</strong>：錄製完成後，輸出檔就在 <code>Set Output</code> 指定的路徑。副檔名決定格式——<code>.mp4</code>、<code>.webm</code>、<code>.gif</code> 都合法。
+        </li>
+      </ol>
+
+      <p>接下來可以到<a href="/scripting/">腳本語言</a>看完整語法，或到<a href="/examples/">範例庫</a>找貼近你情境的腳本。</p>
+    </main>
+    <Footer />
+  </body>
+</html>

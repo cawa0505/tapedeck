@@ -1,0 +1,131 @@
+---
+import Header from '../components/Header.astro';
+import Footer from '../components/Footer.astro';
+---
+
+<!doctype html>
+<html lang="zh-Hant">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>MCP 伺服器 — tapedeck</title>
+    <style>
+      :root {
+        --bg: #ffffff;
+        --bg-header: #fafafa;
+        --fg: #1a1a1a;
+        --fg-muted: #666666;
+        --border: #e5e5e5;
+      }
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --bg: #111111;
+          --bg-header: #161616;
+          --fg: #e8e8e8;
+          --fg-muted: #999999;
+          --border: #2a2a2a;
+        }
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        background: var(--bg);
+        color: var(--fg);
+        font-family: system-ui, -apple-system, "Segoe UI", "Noto Sans TC", sans-serif;
+        line-height: 1.6;
+      }
+      .container {
+        max-width: 960px;
+        margin: 0 auto;
+        padding: 4rem 1.5rem 2rem;
+      }
+      h1 { margin: 0 0 0.5rem; }
+      .lede {
+        color: var(--fg-muted);
+        font-size: 1.05rem;
+        margin-top: 0;
+      }
+      h2 {
+        margin-top: 3rem;
+        padding-top: 1.5rem;
+        border-top: 1px solid var(--border);
+        font-size: 1.3rem;
+      }
+      code {
+        font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+        font-size: 0.9em;
+        background: var(--bg-header);
+        border: 1px solid var(--border);
+        border-radius: 4px;
+        padding: 0.05em 0.35em;
+      }
+      pre {
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        background: var(--bg-header);
+        padding: 1rem 1.25rem;
+        overflow-x: auto;
+      }
+      pre code {
+        display: block;
+        background: none;
+        border: none;
+        padding: 0;
+        font-size: 0.92rem;
+      }
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 0.92rem;
+      }
+      th, td {
+        text-align: left;
+        padding: 0.55rem 0.75rem;
+        border-bottom: 1px solid var(--border);
+        vertical-align: top;
+      }
+      th {
+        color: var(--fg-muted);
+        font-weight: 600;
+      }
+      .note {
+        color: var(--fg-muted);
+        font-size: 0.92rem;
+      }
+    </style>
+  </head>
+  <body>
+    <Header />
+    <main class="container">
+      <h1>MCP 伺服器</h1>
+      <p class="lede">tapedeck 內建 Model Context Protocol（MCP）伺服器模式，讓 AI Agent（opencode、Claude 等）直接呼叫錄製、診斷與後處理工具。</p>
+
+      <h2>啟動</h2>
+      <pre><code>tapedeck mcp</code></pre>
+      <p>伺服器以 <strong>stdio</strong> 運作：MCP 客戶端把 <code>tapedeck mcp</code> 當子程序啟動，透過 stdin／stdout 通訊。協議為 JSON-RPC 2.0，訊息以 <strong>newline 分隔</strong>（每則訊息獨立一行，非 Content-Length framing），一律 UTF-8。除錯日誌走 stderr，stdout 只輸出合法 MCP 訊息。</p>
+
+      <p class="note">連上生命週期：客戶端先送 <code>initialize</code> 進行版本協商，收到回應後送 <code>notifications/initialized</code> 通知，即可開始呼叫工具。沒有 shutdown 訊息——客戶端關閉 stdin，伺服器自然退出（EOF）。可用 <code>tools/list</code> 列工具、<code>tools/call</code> 呼叫，內容型別支援 <code>text</code> 與 <code>image</code>（Base64 PNG，視覺驗證用）。</p>
+
+      <h2>工具一覽</h2>
+      <table>
+        <tr><th>工具</th><th>說明</th></tr>
+        <tr><td><code>tapedeck_run</code></td><td>執行 .roll 腳本（可帶 <code>humanize</code>、<code>append_signature</code>、<code>max_size</code> 參數）</td></tr>
+        <tr><td><code>tapedeck_inspect_environment</code></td><td>環境診斷（依賴／輸入後端／硬體能力）</td></tr>
+        <tr><td><code>tapedeck_extract_frames</code></td><td>按時間點抽取 PNG 影格</td></tr>
+        <tr><td><code>tapedeck_link</code></td><td>媒體檔登錄資產庫（SQLite）</td></tr>
+        <tr><td><code>tapedeck_optimize</code></td><td>ffmpeg 壓製（webm → gif／webp）</td></tr>
+        <tr><td><code>tapedeck_clean</code></td><td>清除資產庫孤兒</td></tr>
+      </table>
+
+      <h2>視覺反饋閉環</h2>
+      <p><code>tapedeck_run</code> 錄製完成後不只回報成功與否——它會回傳 <strong>3 張關鍵影格</strong>（開始／中間／結束，Base64 PNG）加上 <code>record_id</code> 與 <code>preview_frame_uri</code>（asset protocol）。具備 Vision 能力的 Agent 當場就能「看到」畫面：選單有沒有打開、畫面有沒有正確渲染，然後自行修正 <a href="/scripting/">.roll 腳本</a>再試一次。</p>
+      <pre><code>錄製 → PNG 影格 → 視覺驗證</code></pre>
+      <p>整條 E2E 鏈路全自動，不需要人類盯著螢幕確認。</p>
+
+      <h2>怎麼對接</h2>
+      <p>支援 stdio 型 MCP server 的客戶端都能接：把啟動命令設為 <code>tapedeck</code>、參數 <code>mcp</code> 即可（各客戶端設定欄位命名略有差異，請依照你使用的客戶端文件）。接好之後，可以直接對 Agent 說：「幫我錄一段展示 git log 的 GIF，並確認畫面有沒有正確。」</p>
+      <p class="note">錄製前先讓 Agent 呼叫 <code>tapedeck_inspect_environment</code>（等價於 <a href="/getting-started/">tapedeck doctor</a>），可以避免在權限不足或缺依賴的環境白跑一輪。</p>
+    </main>
+    <Footer />
+  </body>
+</html>

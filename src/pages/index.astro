@@ -1,6 +1,32 @@
 ---
 import Header from '../components/Header.astro';
 import Footer from '../components/Footer.astro';
+
+const features = [
+  {
+    title: '.roll 宣告式 DSL',
+    body: '一份 .roll 腳本描述錄製全程：輸入操作層（Type / Enter / Sleep）＋自動化層（ExecBefore / WaitWindow / Optimize），錄到哪、停多久、輸出成什麼，全部宣告式。',
+  },
+  {
+    title: 'TUI ＋ GUI 雙引擎',
+    body: 'TUI 走 vhs 轉譯錄製終端機；GUI 原生模式在 Linux Wayland（niri / sway）做視窗定位，用 wf-recorder 側錄真實桌面視窗。',
+  },
+  {
+    title: 'MCP server 模式',
+    body: 'tapedeck mcp 以 stdio 啟動 MCP 伺服器，AI Agent 直接呼叫錄製、診斷與影格抽取工具，形成「錄製 → PNG 影格 → 視覺驗證」閉環。',
+  },
+  {
+    title: 'doctor 診斷',
+    body: 'tapedeck doctor 體檢執行環境：依賴工具、uinput / wtype 輸入後端與 VA-API 編碼能力，跑腳本前先知道環境行不行。',
+  },
+];
+
+const cards = [
+  { href: '/getting-started/', title: '入門教學', desc: '安裝、環境診斷與第一支 .roll 的完整 walkthrough。' },
+  { href: '/scripting/', title: '腳本語言', desc: '.roll 語法教學：設定指令與指令流，輸入層＋自動化層。' },
+  { href: '/mcp/', title: 'MCP 伺服器', desc: 'stdio JSON-RPC 對接，讓 AI Agent 直接錄影與驗證。' },
+  { href: '/examples/', title: '範例庫', desc: '真實可跑的 .roll 範例：TUI 展示、GUI 自動化、實機側錄。' },
+];
 ---
 
 <!doctype html>
@@ -49,6 +75,82 @@ import Footer from '../components/Footer.astro';
         text-decoration: none;
         font-weight: 600;
       }
+      .install {
+        margin-top: 2.5rem;
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        background: var(--bg-header);
+        padding: 1rem 1.25rem;
+      }
+      .install-label {
+        font-size: 0.8rem;
+        color: var(--fg-muted);
+        margin: 0 0 0.5rem;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+      }
+      .install code {
+        display: block;
+        font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+        font-size: 1.05rem;
+        color: var(--fg);
+        background: none;
+        padding: 0;
+      }
+      .feature-grid {
+        margin-top: 3rem;
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+        gap: 1.25rem;
+      }
+      .feature {
+        border-top: 2px solid var(--border);
+        padding-top: 0.9rem;
+      }
+      .feature h2 {
+        margin: 0 0 0.4rem;
+        font-size: 1rem;
+      }
+      .feature p {
+        margin: 0;
+        color: var(--fg-muted);
+        font-size: 0.92rem;
+      }
+      .card-grid {
+        margin-top: 3.5rem;
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+        gap: 1.25rem;
+      }
+      .card {
+        display: block;
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        padding: 1.1rem 1.25rem;
+        text-decoration: none;
+        color: var(--fg);
+        transition: border-color 0.15s ease;
+      }
+      .card:hover {
+        border-color: #2f6feb;
+      }
+      .card h2 {
+        margin: 0 0 0.35rem;
+        font-size: 1rem;
+      }
+      .card p {
+        margin: 0;
+        color: var(--fg-muted);
+        font-size: 0.88rem;
+      }
+      code.inline {
+        font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+        font-size: 0.9em;
+        background: var(--bg-header);
+        border: 1px solid var(--border);
+        border-radius: 4px;
+        padding: 0.05em 0.35em;
+      }
     </style>
   </head>
   <body>
@@ -56,9 +158,33 @@ import Footer from '../components/Footer.astro';
     <main class="container">
       <h1>tapedeck</h1>
       <p>Linux-first media recorder — 以 .roll 宣告式 DSL 驅動 TUI（vhs）與 GUI（niri/sway + wf-recorder）兩軌錄製。</p>
+
+      <div class="install">
+        <p class="install-label">安裝</p>
+        <code>cargo install tapedeck-cli</code>
+      </div>
+
       <div class="cta">
         <a href="https://github.com/cawa0505/tapedeck">Get Started →</a>
       </div>
+
+      <section class="feature-grid">
+        {features.map((f) => (
+          <div class="feature">
+            <h2>{f.title}</h2>
+            <p>{f.body}</p>
+          </div>
+        ))}
+      </section>
+
+      <section class="card-grid">
+        {cards.map((c) => (
+          <a class="card" href={c.href}>
+            <h2>{c.title}</h2>
+            <p>{c.desc}</p>
+          </a>
+        ))}
+      </section>
     </main>
     <Footer />
   </body>

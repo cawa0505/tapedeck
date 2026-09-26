@@ -1,0 +1,179 @@
+---
+import Header from '../components/Header.astro';
+import Footer from '../components/Footer.astro';
+---
+
+<!doctype html>
+<html lang="zh-Hant">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>範例庫 — tapedeck</title>
+    <style>
+      :root {
+        --bg: #ffffff;
+        --bg-header: #fafafa;
+        --fg: #1a1a1a;
+        --fg-muted: #666666;
+        --border: #e5e5e5;
+      }
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --bg: #111111;
+          --bg-header: #161616;
+          --fg: #e8e8e8;
+          --fg-muted: #999999;
+          --border: #2a2a2a;
+        }
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        background: var(--bg);
+        color: var(--fg);
+        font-family: system-ui, -apple-system, "Segoe UI", "Noto Sans TC", sans-serif;
+        line-height: 1.6;
+      }
+      .container {
+        max-width: 960px;
+        margin: 0 auto;
+        padding: 4rem 1.5rem 2rem;
+      }
+      h1 { margin: 0 0 0.5rem; }
+      .lede {
+        color: var(--fg-muted);
+        font-size: 1.05rem;
+        margin-top: 0;
+      }
+      h2 {
+        margin-top: 2.5rem;
+        font-size: 1.2rem;
+      }
+      code {
+        font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+        font-size: 0.9em;
+        background: var(--bg-header);
+        border: 1px solid var(--border);
+        border-radius: 4px;
+        padding: 0.05em 0.35em;
+      }
+      pre {
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        background: var(--bg-header);
+        padding: 1rem 1.25rem;
+        overflow-x: auto;
+      }
+      pre code {
+        display: block;
+        background: none;
+        border: none;
+        padding: 0;
+        font-size: 0.9rem;
+      }
+    </style>
+  </head>
+  <body>
+    <Header />
+    <main class="container">
+      <h1>範例庫</h1>
+      <p class="lede">以下腳本取自 repo 的 examples/ 目錄。執行方式：<code>tapedeck run 範例檔.roll</code>；建議先以 <code>tapedeck run --dry-run</code> 乾跑確認。</p>
+
+      <h2>test_tui.roll — 第一支終端機錄影</h2>
+      <p>最精簡的 TUI 腳本：在終端機輸入一行 echo 再停一秒，輸出 GIF。也是舊寫法（Title → Mode → Output → FPS）的相容示範。</p>
+      <pre><code>Title "TUI Test"
+Mode TUI
+Output "test_tui.gif"
+FPS 15
+
+Type "echo Hello Tapedeck"
+Enter
+Sleep 1s</code></pre>
+
+      <h2>tui_zago.roll — TUI 鍵盤導航測試</h2>
+      <p>啟動 zago 的 fzf 模式介面，驗證鍵盤導航（Key Down／Tab／Enter）與預覽功能，最後以 <code>q</code> 退出。</p>
+      <pre><code>Set Engine Auto
+Set Output "assets/zago_tui_test.webm"
+Set FPS 30
+
+Type "zago"
+Sleep 1s
+Enter
+
+# 鍵盤導航測試
+Sleep 500ms
+Key Down
+Sleep 200ms
+Key Down
+Sleep 200ms
+Key Enter
+Sleep 1s
+
+Key Tab
+Sleep 300ms
+Key Enter
+Sleep 1s
+Key q  # 退出 TUI</code></pre>
+
+      <h2>tui_zago_logo_turtle.roll — LOGO 海龜繪圖</h2>
+      <p>用 zago 的 LOGO 模式在文字緩衝區畫出一個階梯八角形，展示 <code>Escape</code>、<code>Ctrl+X</code> 等特殊鍵的寫法。</p>
+      <pre><code>Set Engine Auto
+Set Output "zago_logo_turtle.gif"
+Set FPS 15
+
+Type "zago"
+Sleep 1s
+Enter
+Sleep 1s
+
+# Esc 開啟指令提示，LOGO 畫階梯八角形
+Escape
+Type "PD FD 16 RT 90 FD 8 RT 90 FD 6 RT 90 FD 3 RT 90 FD 4 RT 90 FD 3 RT 90 FD 6 RT 90 FD 8 PU"
+Enter
+Sleep 2s
+
+# Ctrl+X 是 zago 的 nano 相容離開鍵
+Ctrl+X
+Sleep 1s
+Type "n"
+Enter</code></pre>
+
+      <h2>gui_demo.roll — GUI 自動化工作流</h2>
+      <p>完整 GUI 劇本：啟動 Obsidian、等視窗、鎖定目標、滑鼠＋鍵盤操作、存檔、收尾並轉碼。輸入層與自動化層的綜合示範。</p>
+      <pre><code>Title "Obsidian Automation"
+Set Engine Native
+Set Output "assets/obsidian_demo.webm"
+
+ExecBefore "obsidian"
+WaitWindow "Obsidian" timeout=10s
+
+TargetWindow "Obsidian"
+WindowSize 1200 800
+Padding 20
+
+Roll 15s
+MouseMove 500 300 speed=smooth
+Sleep 300ms
+Click Left
+Type "New note for tapedeck demo"
+Sleep 500ms
+Shortcut "Ctrl+S"
+
+ExecAfter "pkill obsidian"
+Optimize AV1 encoder=av1_vaapi</code></pre>
+
+      <h2>gui_umbriel_firefox.roll — 實機視窗側錄</h2>
+      <p>零輸入注入的側錄錄範例：鎖定 firefox 視窗、不做任何操作（無 Type／Key／Click），安靜錄 10 秒真實桌面動態，輸出為 mp4。</p>
+      <pre><code>Title "T4 umbriel native e2e"
+Set Engine Native
+Set Output "t4_umbriel_firefox.mp4"
+
+TargetWindow "firefox"
+Padding 0
+
+Roll 10s</code></pre>
+
+    </main>
+    <Footer />
+  </body>
+</html>

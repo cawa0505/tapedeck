@@ -1,11 +1,24 @@
 ---
-const { title = 'tapedeck' } = Astro.props;
+const links = [
+  { href: '/getting-started/', label: '入門' },
+  { href: '/scripting/', label: '腳本語言' },
+  { href: '/mcp/', label: 'MCP' },
+  { href: '/examples/', label: '範例' },
+];
+const current = Astro.url.pathname;
+const isActive = (href: string) =>
+  href === '/' ? current === '/' : current.startsWith(href);
 ---
 
 <header>
   <nav>
     <a class="brand" href="/">tapedeck</a>
     <span class="tagline">Linux-first media recorder</span>
+    <div class="links">
+      {links.map((link) => (
+        <a href={link.href} aria-current={isActive(link.href) ? 'page' : undefined}>{link.label}</a>
+      ))}
+    </div>
   </nav>
 </header>
 
@@ -21,6 +34,7 @@ const { title = 'tapedeck' } = Astro.props;
     display: flex;
     align-items: baseline;
     gap: 1rem;
+    flex-wrap: wrap;
   }
   .brand {
     font-weight: 700;
@@ -31,5 +45,31 @@ const { title = 'tapedeck' } = Astro.props;
   .tagline {
     color: var(--fg-muted);
     font-size: 0.9rem;
+  }
+  .links {
+    margin-left: auto;
+    display: flex;
+    gap: 1.1rem;
+    flex-wrap: wrap;
+  }
+  .links a {
+    color: var(--fg-muted);
+    text-decoration: none;
+    font-size: 0.95rem;
+  }
+  .links a:hover {
+    color: var(--fg);
+  }
+  .links a[aria-current='page'] {
+    color: var(--fg);
+    font-weight: 600;
+  }
+  @media (max-width: 640px) {
+    .tagline {
+      display: none;
+    }
+    .links {
+      margin-left: 0;
+    }
   }
 </style>
