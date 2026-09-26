@@ -25,16 +25,20 @@ tapedeck 是一個專為工程師、AI Agent 和技術內容創作者設計的 *
 
 ## 🚀 安裝與使用
 
-> 尚未發布到 crates.io，安裝請從原始碼建置：
+> 已發布到 crates.io：
 
 ```bash
 # 需 Rust + cargo；額外依賴：ffmpeg、vhs（TUI）、wf-recorder（GUI Wayland）
-git clone https://github.com/cawa0505/tapedeck.git
-cd tapedeck
-cargo install --path .
+cargo install tapedeck-cli
+
+# 或從原始碼建置（含未發布功能）：
+#   git clone https://github.com/cawa0505/tapedeck.git && cd tapedeck
+#   cargo install --path .
+```
 
 # 執行 .roll 腳本
-tapedeck run examples/test_tui.roll
+cargo install --path .
+```
 
 # 先乾跑確認解析與引擎選擇
 tapedeck run --dry-run examples/test_tui.roll
