@@ -574,20 +574,11 @@ mod tests {
             .commands
             .iter()
             .any(|c| *c == ScriptCommand::TargetWindow("Obsidian".into())));
-        assert!(s
-            .commands
-            .iter()
-            .any(|c| *c == ScriptCommand::WindowSize(1200, 800)));
-        assert!(s.commands.iter().any(|c| *c == ScriptCommand::Padding(20)));
-        assert!(s.commands.iter().any(|c| *c == ScriptCommand::Roll(15)));
-        assert!(s
-            .commands
-            .iter()
-            .any(|c| *c == ScriptCommand::MouseMove(500, 300)));
-        assert!(s
-            .commands
-            .iter()
-            .any(|c| *c == ScriptCommand::Click(ClickType::Left)));
+        assert!(s.commands.contains(&ScriptCommand::WindowSize(1200, 800)));
+        assert!(s.commands.contains(&ScriptCommand::Padding(20)));
+        assert!(s.commands.contains(&ScriptCommand::Roll(15)));
+        assert!(s.commands.contains(&ScriptCommand::MouseMove(500, 300)));
+        assert!(s.commands.contains(&ScriptCommand::Click(ClickType::Left)));
         assert!(s
             .commands
             .iter()
@@ -753,9 +744,6 @@ WaitWindow "App3"
     #[test]
     fn mousemove_speed_ignored() {
         let s = parse_roll_content("MouseMove 100 200 speed=smooth\n").unwrap();
-        assert!(s
-            .commands
-            .iter()
-            .any(|c| *c == ScriptCommand::MouseMove(100, 200)));
+        assert!(s.commands.contains(&ScriptCommand::MouseMove(100, 200)));
     }
 }
