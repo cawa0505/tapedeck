@@ -2,38 +2,46 @@
 
 感謝您對 tapedeck 的興趣！以下為貢獻流程規範：
 
-## 📌 貢獻原則
+## 📌 專案現況
 
-1. **核心範圍優先**：
-   - 目前僅支援 Linux (Wayland/X11)
-   - 新功能需先通過 `src/engine/tape.rs` 的 RecordingEngine Trait 抽象
-   - 非 Linux 平台請透過 PR 貢獻（需通過 CI 測試）
-
-2. **開發流程**：
-   - Fork 本專案並建立 feature branch
-   - 提交 PR 前請執行 `cargo test` 和 `cargo clippy`
-   - 更新 `CHANGELOG.md` 記錄變更
-
-3. **代碼規範**：
-   - 遵循 Rust 2024 風格指南
-   - 每 80 字元換行
-   - 使用 `anyhow` 錯誤處理
+- 目前僅支援 **Linux（Wayland）**：TUI 錄製轉譯給 [vhs](https://github.com/charmbracelet/vhs) 執行；GUI 側錄走 Wayland compositor IPC（niri / sway / umbriel）＋ wf-recorder
+- X11 後端尚未實作，暫不接受相關 PR（歡迎先開 issue 討論）
 
 ## 🔧 開發環境設定
 
-```bash
-# 安裝依賴
-cargo install --locked
+需求：Rust toolchain（edition 2021）、ffmpeg、vhs（TUI 模式）、wf-recorder（GUI 模式，Wayland）
 
-# 執行所有檢查
-cargo xtask ci
+```bash
+git clone https://github.com/cawa0505/tapedeck.git
+cd tapedeck
+cargo build
+cargo test
 ```
 
-## 📦 發布流程
+## 📌 貢獻原則
 
-1. 更新 `CHANGELOG.md`
-2. 標記 Git Tag: `git tag vX.Y.Z`
-3. 推送 Tag 觸發 GitHub Actions 發布至 crates.io
+1. **規格先行（Documentation First）**：語法與行為變更需先更新 `openspec/specs/<change-set>/` 四件套（proposal / requirements / design / tasks），實作以文件為唯一依據。詳見 [AGENTS.md](AGENTS.md)
+2. **引擎抽象**：新錄製後端須實作 `src/engine/dispatcher.rs` 的 `RecordingEngine` trait
+3. **外部工具依賴走 adapter**：compositor 控制面（niri / sway / umbriel）、wf-recorder、ffmpeg 皆收斂在 adapter 層，不寫死於 dispatcher
+
+## 💻 提交前檢查
+
+```bash
+cargo fmt --check
+cargo clippy --all-targets -- -D warnings
+cargo test
+```
+
+## 🔄 貢獻流程
+
+1. Fork 本專案並建立 feature branch
+2. 通過上述檢查後提交 PR，描述變更動機
+3. PR 由 CI 自動執行 fmt / clippy / test 驗證
+
+## 📦 發布流程（維護者）
+
+1. 更新 `Cargo.toml` 版本號
+2. 標記 Git Tag：`git tag vX.Y.Z && git push origin vX.Y.Z`
 
 ---
 
