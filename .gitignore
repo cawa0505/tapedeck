@@ -3,9 +3,16 @@
 .opencode/
 secrets.md
 
-# 忽略編譯和快取
+# 忽略本地工作檔（工單、暫存草稿、未定案原始碼殘骸）
+.local/
+
+# 根目錄工單草稿（開票中的票不入版控；定案規格走 openspec/）
+ticket*.md
+
+# 忽略編譯和快取（Cargo.lock 是 binary crate 的可重現性契約，入版控）
 target/
 *.lock
+!Cargo.lock
 
 # 忽略錄影產出（.roll 執行的輸出媒體檔與 assets 目錄）
 *.gif

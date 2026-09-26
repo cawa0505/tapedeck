@@ -1,7 +1,11 @@
 [package]
 name = "tapedeck"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2021"
+description = "Script-driven dual-mode media recorder: declarative .roll scripts driving TUI (vhs) and native Wayland window recording"
+license = "MIT"
+repository = "https://github.com/cawa0505/tapedeck"
+readme = "README.md"
 
 [dependencies]
 tokio = { version = "1.38", features = ["full"] }
