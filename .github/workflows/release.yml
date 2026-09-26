@@ -1,0 +1,69 @@
+name: Release
+
+# crates.io trusted publishing（OIDC）——不需要長期 token：
+# GitHub 以 id-token 換取 crates.io 一次性臨時 token，action 的 post step 會自動撤銷。
+# 前置設定（一次性，需在 crates.io 網站操作）：
+#   crates.io → 帳號設定 → Trusted Publishing 綁定：
+#     repository: cawa0505/tapedeck
+#     workflow:   release.yml
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "要發布的 tag（例：v0.2.0；留空則以 main HEAD 對应 Cargo.toml 版本發布）"
+        required: false
+        default: ""
+
+permissions:
+  contents: read
+  id-token: write # OIDC：trusted publishing 必需
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  publish:
+    name: publish tapedeck-cli
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+
+      # guard 1：tag 推送時，tag 必須指向 main HEAD（防舊 commit 重發）
+      - name: Verify tag points to main HEAD
+        if: ${{ github.event_name == 'push' }}
+        run: |
+          git fetch origin main --quiet
+          test "$(git rev-parse HEAD)" = "$(git rev-parse origin/main)" \
+            || { echo "::error::tag ${GITHUB_REF_NAME} 不在 main HEAD 上，拒絕發布"; exit 1; }
+
+      # guard 2：tag 名必須等於 Cargo.toml 版本（v0.2.0 ↔ version = "0.2.0"）
+      - name: Verify tag matches Cargo.toml version
+        run: |
+          manifest="$(grep -m1 '^version' Cargo.toml | sed -E 's/^version\s*=\s*"([^"]+)".*/\1/')"
+          if [ -n "${{ inputs.tag }}" ]; then
+            tag="${{ inputs.tag }}"
+          else
+            tag="${GITHUB_REF_NAME#v}"
+          fi
+          echo "tag=${tag} manifest=${manifest}"
+          test "${tag}" = "${manifest}" \
+            || { echo "::error::tag 版本與 Cargo.toml 不一致"; exit 1; }
+
+      # guard 3：--locked 確保 Cargo.lock 與 manifest 一致（入版控驗證）
+      - name: Package (dry-run, locked)
+        run: cargo publish --locked --dry-run
+
+      - name: Authenticate with crates.io (OIDC trusted publishing)
+        id: auth
+        uses: rust-lang/crates-io-auth-action@v1
+
+      - name: Publish
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ steps.auth.outputs.token }}
+        run: cargo publish --locked
