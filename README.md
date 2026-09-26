@@ -5,22 +5,33 @@
 tapedeck 是一個專為工程師、AI Agent 和技術內容創作者設計的 **雙模錄影引擎**，用 `.roll` 宣告式腳本自動化錄影：
 
 1. **TUI 文字模式**：終端機錄製（轉譯為 vhs .tape 執行），適合 CLI 操作展示
-2. **GUI 原生模式**：真實桌面視窗側錄（Wayland/X11），滑鼠/鍵盤注入 + 硬體加速 AV1/VP9 編碼
+2. **GUI 原生模式**：真實桌面視窗側錄（目前支援 Linux Wayland），宣告式視窗等待/定位 + 硬體加速 AV1/VP9 編碼
 
 ## 🛠️ 核心功能
 
 - **智慧引擎調度**：`Set Engine Auto` 自動選擇最佳後端（vhs / Native）
-- **硬體探針**：偵測 GPU AV1 硬體，自動啟用零負擔編碼（AV1 HW → VP9 HW → VP9 SW 降級鏈）
+- **硬體探針**：偵測 GPU VA-API 編碼能力，自動啟用零負擔編碼（AV1 HW → VP9 HW → VP9 SW 降級鏈）
 - **宣告式腳本**：`.roll` 語法，雙層設計 — 輸入操作 + 自動化層（視窗等待/前後置指令/優化）
-- **TUI 雙欄導播台**：fzf 選單 + Sixel 即時預覽
+- **TUI 雙欄導播台**：模糊搜尋選單 + 即時影像預覽（可選功能，`--features preview`）
 - **資產追蹤**：SQLite 關聯媒體檔與 Markdown 引用
 - **孤兒資產清理**：一鍵刪除無引用的大檔案
 
+## ⚙️ 平台支援
+
+| 模式 | 支援 |
+|------|------|
+| TUI（vhs 轉譯） | Linux / macOS / Windows（vhs 本身的支援範圍） |
+| GUI 原生錄製 | **Linux Wayland**（niri / sway 視窗定位；X11 未支援） |
+
 ## 🚀 安裝與使用
 
+> 尚未發布到 crates.io，安裝請從原始碼建置：
+
 ```bash
-# 安裝（需 Rust + cargo）
-cargo install tapedeck
+# 需 Rust + cargo；額外依賴：ffmpeg、vhs（TUI）、wf-recorder（GUI Wayland）
+git clone https://github.com/cawa0505/tapedeck.git
+cd tapedeck
+cargo install --path .
 
 # 執行 .roll 腳本
 tapedeck run examples/test_tui.roll
