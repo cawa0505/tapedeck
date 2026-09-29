@@ -89,6 +89,33 @@ async fn run() -> Result<()> {
         }
         Commands::Doctor => doctor::run_doctor(),
         Commands::Mcp => mcp::server::serve().await?,
+        Commands::Register(args) => {
+            let token = match args.token {
+                Some(t) => t,
+                None => {
+                    std::env::var("NEXUS_TOKEN")
+                        .or_else(|_| {
+                            let home = std::env::var("HOME").unwrap_or_default();
+                            std::fs::read_to_string(format!("{}/.config/nexus/nexus-token", home))
+                                .map(|s| s.trim().to_string())
+                        })
+                        .map_err(|_| anyhow::anyhow!("未提供 NEXUS_TOKEN，請透過 --token 指定或設定環境變數"))?
+                }
+            };
+
+            let mut builder = nexus_mcp_sdk::NexusApp::builder("tapedeck")?
+                .version(env!("CARGO_PKG_VERSION"));
+
+            // 註冊所有工具並以 SDK 防禦檢查 64 字元與命名
+            for tool in mcp::tools::list() {
+                builder = builder.register_tool(nexus_mcp_sdk::Tool::new(tool.name, tool.description))?;
+            }
+
+            let app = builder.build()?;
+            println!("正在向 NexusHub 註冊 tapedeck (hub: {})...", args.hub);
+            let resp = app.register(&args.hub, &token, None, vec!["mcp".into()]).await?;
+            println!("{resp}");
+        }
     }
 
     Ok(())

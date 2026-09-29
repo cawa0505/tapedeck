@@ -26,6 +26,18 @@ pub enum Commands {
     Reroll(RerollArgs),
     /// MCP stdio 伺服器（JSON-RPC 2.0 over stdio）
     Mcp,
+    /// 向 NexusHub 自動註冊自身為 MCP 上游
+    Register(RegisterArgs),
+}
+
+#[derive(Args)]
+pub struct RegisterArgs {
+    /// NexusHub 網關 URL
+    #[arg(long, default_value = "https://nexushub.int.fotolove.top/mcp")]
+    pub hub: String,
+    /// NexusHub 存取 Token（若未指定則讀取環境變數 NEXUS_TOKEN 或 ~/.config/nexus/nexus-token）
+    #[arg(long)]
+    pub token: Option<String>,
 }
 
 #[derive(Args)]
