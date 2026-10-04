@@ -26,10 +26,12 @@ pub enum Commands {
     Reroll(RerollArgs),
     /// MCP stdio 伺服器（JSON-RPC 2.0 over stdio）
     Mcp,
-    /// 向 NexusHub 自動註冊自身為 MCP 上游
+    #[cfg(feature = "nexushub")]
+    /// 向 NexusHub 自動註冊自身為 MCP 上游（僅限 homelab 內部環境）
     Register(RegisterArgs),
 }
 
+#[cfg(feature = "nexushub")]
 #[derive(Args)]
 pub struct RegisterArgs {
     /// NexusHub 網關 URL

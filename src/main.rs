@@ -89,6 +89,7 @@ async fn run() -> Result<()> {
         }
         Commands::Doctor => doctor::run_doctor(),
         Commands::Mcp => mcp::server::serve().await?,
+        #[cfg(feature = "nexushub")]
         Commands::Register(args) => {
             let token = match args.token {
                 Some(t) => t,
