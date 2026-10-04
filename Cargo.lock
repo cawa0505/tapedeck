@@ -1550,6 +1550,7 @@ checksum = "650eef8c711430f1a879fdd01d4745a7deea475becfb90269c06775983bbf086"
 [[package]]
 name = "nexus-mcp-sdk"
 version = "0.1.0"
+source = "git+ssh://git@gitlab.com/saaslab/nexus-hub-sdk.git#91b975527fb0e9619a10cdbce93500a8788f2def"
 dependencies = [
  "clap",
  "regex",
